@@ -1,0 +1,7 @@
+development:
+  months_ahead: 2
+  reconciliation_days: 3
+
+production:
+  months_ahead: 2
+  reconciliation_days: 3

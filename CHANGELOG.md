@@ -5,13 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-10-15
 
-### Changed
-- Dummy and root GitHub tags: Recording Studio `v4.2.1` → `v4.2.2`.
+### Added
+- `RecordingStudioLogs.register` and `RecordingStudioLogs.aggregate` for producer logs and namespaced daily summaries.
+- Monthly range partitions, a composite primary key of `(id, timestamp)`, and `EnsuresPartition` for inserts into a month that is not attached yet.
+- Daily aggregation with delete-and-insert replacement, backfill, and a short UTC reconciliation window.
+- Retention that drops a month only after it is fully expired and every summary of that month has finished. `:indefinite` keeps the table.
+- `delete_for_root` for one owner's raw rows and the summaries that group by that root.
+- ActiveJob classes a host can schedule. No queue gem is bundled.
+- An optional metrics bridge. Count and sum summaries become timeseries when `RecordingStudioMetrics` is loaded. Summaries are still written when it is absent.
+- Optional read-only admin screens when `RecordingStudioAdmin` is loaded. They show health and summary progress, not raw rows.
+- A dummy site-view log with press-kit and press-center summaries, plus an indefinite download-shaped log.
+
+### Removed
+- The template page model, page migration, and example capability.
 
 ### Upgrade notes
-- Point host and dummy Gemfiles at Recording Studio `v4.2.2`.
+- This is the first logs release. There is no compatibility shim for the template page table or example capability.
+- Run `bin/rails generate recording_studio_logs:migrations`, then `bin/rails db:migrate`, to add aggregation and maintenance run tables.
+- Producing gems ship their own log migrations. Consumers ship their own summary migrations. Initializers do not create those tables.
+- Existing production log tables stay as they are until that gem ships a manual partition cutover. This gem does not rewrite them.
+- Schedule `PartitionMaintenanceJob`, `DailyAggregationJob`, `ReconciliationJob`, and `RetentionCleanupJob` in the host. Day boundaries are UTC.
+- Set `config.retention_for("ModelName", duration)` to override a gem default. One policy per table.
+- Call `RecordingStudioLogs.finalize!` after registering. The engine also finalizes on boot.
+- Admin screens appear only when `RecordingStudioAdmin` is already on the host. Grant them with Accessible on an admin root.
 
 ## [0.2.3] - 2026-10-01
 
@@ -71,7 +89,7 @@ New addons copied from this template are born on Recording Studio 4.x.
 ### Added
 - Gemspec dependency `recording_studio`, `~> 4.1`
 - Dummy host wiring for Accessible (`enable_capability(:accessible, on: Workspace)`) and an opt-in `RecordingStudio::Capabilities::Example.to` mixin. `.to` wraps core 4.2.0 `include_for` (not a fourth verb, and not a raw `enable_capability` / `set_capability_options` path). Installing the gem does not enable the mixin globally; only dummy Workspace opts in.
-- `bin/rename_gem` leftover-identity rewrite/verification for README, homepage, and changelog URLs that still say `GemTemplate` or point at `bowerbird-app/gem_template`
+- `bin/rename_gem` leftover-identity rewrite/verification for README, homepage, and changelog URLs that still say `RecordingStudioLogs` or point at `bowerbird-app/recording_studio_logs`
 
 ### Changed
 - Dummy GitHub tags: Recording Studio `v4.2.0`, Accessible `v0.6.0`, Root Switchable `v0.5.0`, FlatPack `v0.1.133`
@@ -80,7 +98,7 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Require `RecordingStudio::Hooks` and `RecordingStudio::Services::BaseService` from core instead of shipping copies
 
 ### Removed
-- Copied `lib/gem_template/hooks.rb` and `lib/gem_template/services/base_service.rb`
+- Copied `lib/recording_studio_logs/hooks.rb` and `lib/recording_studio_logs/services/base_service.rb`
 - Product-shipped `ExampleService`
 - Custom `flat_pack_sidebar` authenticated shell
 
@@ -115,11 +133,11 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/RecordingStudio_gem_template/compare/v0.2.3...HEAD
-[0.2.3]: https://github.com/bowerbird-app/RecordingStudio_gem_template/releases/tag/v0.2.3
-[0.2.2]: https://github.com/bowerbird-app/RecordingStudio_gem_template/releases/tag/v0.2.2
-[0.2.1]: https://github.com/bowerbird-app/RecordingStudio_gem_template/releases/tag/v0.2.1
-[0.2.0]: https://github.com/bowerbird-app/RecordingStudio_gem_template/releases/tag/v0.2.0
-[0.1.2]: https://github.com/bowerbird-app/RecordingStudio_gem_template/releases/tag/v0.1.2
-[0.1.1]: https://github.com/bowerbird-app/RecordingStudio_gem_template/releases/tag/v0.1.1
-[0.1.0]: https://github.com/bowerbird-app/RecordingStudio_gem_template/releases/tag/v0.1.0
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/bowerbird-app/recording_studio_logs/releases/tag/v0.2.3
+[0.2.2]: https://github.com/bowerbird-app/recording_studio_logs/releases/tag/v0.2.2
+[0.2.1]: https://github.com/bowerbird-app/recording_studio_logs/releases/tag/v0.2.1
+[0.2.0]: https://github.com/bowerbird-app/recording_studio_logs/releases/tag/v0.2.0
+[0.1.2]: https://github.com/bowerbird-app/recording_studio_logs/releases/tag/v0.1.2
+[0.1.1]: https://github.com/bowerbird-app/recording_studio_logs/releases/tag/v0.1.1
+[0.1.0]: https://github.com/bowerbird-app/recording_studio_logs/releases/tag/v0.1.0
