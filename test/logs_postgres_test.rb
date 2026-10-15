@@ -535,17 +535,16 @@ class LogsPostgresTest < Minitest::Test
       source: source, name: "host/arrival_counts", summary_model: summary,
       group_by: [:root_recording_id], measurements: { views: :count }, owner: "Arrivals"
     )
-    day = Date.new(2020, 1, 15)
     RecordingStudioLogs.ensure_partition!(source, Time.utc(2020, 1, 15))
-    source.create!(occurred_at: Time.utc(2020, 1, 15, 8), root_recording_id: SecureRandom.uuid)
-    RecordingStudioLogs.aggregate_day!(day)
-    source.create!(occurred_at: Time.utc(2020, 1, 15, 18), root_recording_id: SecureRandom.uuid)
+    RecordingStudioLogs.backfill!("host/arrival_counts", from: Date.new(2020, 1, 1), to: Date.new(2020, 1, 31))
+    source.create!(occurred_at: Time.utc(2020, 1, 18, 12), root_recording_id: SecureRandom.uuid)
     name = "rs_logs_spec_arrivals_2020_01"
 
     report = RecordingStudioLogs.cleanup_retention!
 
     assert_includes report.blocked, name
-    assert_equal 2, source.count
+    assert RecordingStudioLogs::Partitioning::Catalog.exists?(table, name)
+    assert_equal 1, source.count
   ensure
     ActiveRecord::Base.connection.drop_table(summary_name, if_exists: true) if defined?(summary_name)
     drop_extra(table, "ArrivalLog") if defined?(table)

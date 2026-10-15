@@ -79,7 +79,7 @@ Call `RecordingStudioLogs.finalize!` at the end of the initializer that register
 
 Summary tables are ordinary ActiveRecord models. Read them directly when metrics is not installed.
 
-When `RecordingStudioMetrics` is loaded, a summary that is ready, groups by the log's root column, and has a count or sum is registered as a timeseries. The metric sums the stored daily column and is scoped to the root recording's id. The series is a fresh UTC-day rollup. A day with no summary stays empty. The resource name is the aggregation name with `/` replaced by `_`. Average, minimum, and maximum stay on the summary table. This gem still writes summaries when metrics is absent. A bad timezone, a bad `start_at`, or `group_by` raises a metrics input error.
+When `RecordingStudioMetrics` is loaded, a summary that is ready, groups by the log's root column, and has a count or sum is registered as a timeseries. The metric sums the stored daily column and is scoped to the root recording's id. The series is a fresh UTC-day rollup. A day with no summary stays empty. The resource name is the aggregation name with `/` replaced by `_`. Average, minimum, and maximum stay on the summary table. This gem still writes summaries when metrics is absent. A bad timezone, a bad `start_at`, or `group_by` passed to `RecordingStudioMetrics.execute` raises a metrics input error. The metrics HTTP execute handler does not forward `group_by`, so that query parameter is ignored there.
 
 ## Retention and owner deletion
 
