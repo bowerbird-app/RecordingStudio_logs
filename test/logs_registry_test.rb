@@ -138,6 +138,33 @@ class LogsRegistryTest < Minitest::Test
     assert_equal 5.days, RecordingStudioLogs.logs.first.retention
   end
 
+  def test_the_same_owner_can_register_an_aggregation_again
+    register_views
+    register_press_kit
+    RecordingStudioLogs.aggregate(
+      source: ViewLog, name: "presskits/press_kit_views", summary_model: PressKitSummary,
+      group_by: [:root_recording_id], owner: "Press kits", measurements: { views: :count }
+    )
+
+    assert_equal 1, RecordingStudioLogs.aggregations.size
+    assert_equal [:root_recording_id], RecordingStudioLogs.registry.aggregation("presskits/press_kit_views").group_by
+  end
+
+  def test_a_different_owner_cannot_take_an_aggregation_name
+    register_views
+    register_press_kit
+
+    error = assert_raises(RecordingStudioLogs::InvalidRegistration) do
+      RecordingStudioLogs.aggregate(
+        source: ViewLog, name: "presskits/press_kit_views", summary_model: PressCenterSummary,
+        group_by: [:root_recording_id], owner: "Press centers", measurements: { views: :count }
+      )
+    end
+
+    assert_includes error.message, "Press kits"
+    assert_equal "Press kits", RecordingStudioLogs.registry.aggregation("presskits/press_kit_views").owner
+  end
+
   def test_re_registering_the_same_log_replaces_it
     register_views
     RecordingStudioLogs.register(

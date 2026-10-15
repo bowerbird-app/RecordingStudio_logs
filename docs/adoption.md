@@ -2,9 +2,9 @@
 
 This gem is the shared partition, retention, and daily-summary path. Each producing gem still owns its table and its insert path. Do not move those rows into recordings, and do not merge unrelated logs into one site-view table.
 
-v1 is daily only. A day is a UTC half-open window. NULL group columns stay as their own group. Rebuilding a day replaces that day's summary rows. Late rows land in the still-attached month and show up on the next reconciliation. Inserts into a dropped month fail on purpose.
+v1 is daily only. A day is a UTC half-open window. NULL group columns stay as their own group. Rebuilding a day replaces that day's summary rows. A late row keeps its month until every aggregation for that log has a success finished at or after the row. That includes a consumer registered after the last rebuild, and a consumer whose gem is not loaded. Inserts into a dropped month fail on purpose.
 
-Summaries that omit `root_recording_id` cannot be reduced when an owner is deleted. `delete_for_root` reports those as unscoped and leaves them. Group by the root column when the summary must follow owner deletion.
+Summaries that omit `root_recording_id` are rebuilt for the affected days when an owner is deleted, so the deleted owner's counts do not stay in the total. `delete_for_root` still reports those names as unscoped. Group by the root column when a summary should drop that owner's rows instead of rebuilding the whole day. A consumer whose model is not loaded blocks the delete.
 
 ## Downloadable
 

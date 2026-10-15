@@ -3,124 +3,73 @@
 require "test_helper"
 
 class MetricsBridgeTest < Minitest::Test
-  def setup
-    @definition = FakeSummary.new
-    @metrics = FakeMetrics.new
-    Object.const_set(:RecordingStudioMetrics, @metrics)
-  end
-
-  def teardown
-    Object.send(:remove_const, :RecordingStudioMetrics) if defined?(RecordingStudioMetrics)
-  end
-
-  def test_count_and_sum_become_timeseries_over_the_summary_column
-    @definition.measurements = [
-      RecordingStudioLogs::Measurement.new(:views, :count),
-      RecordingStudioLogs::Measurement.new(:watch_time, :sum, :duration_ms)
-    ]
-
-    RecordingStudioLogs::MetricsBridge.register_one(@definition)
-
-    resource = @metrics.resources.fetch(:presskits_press_kit_views)
-    assert_equal :root_recording_id, resource[:scope_attribute]
-    assert_equal(
-      [
-        [:views, { field: :day, measurement: :sum, value_field: :views, title: "Views" }],
-        [:watch_time, { field: :day, measurement: :sum, value_field: :watch_time, title: "Watch time" }]
-      ],
-      resource[:series]
-    )
-  end
-
-  def test_average_and_unrooted_summaries_stay_tables
-    @definition.measurements = [RecordingStudioLogs::Measurement.new(:duration, :average, :duration_ms)]
-    RecordingStudioLogs::MetricsBridge.register_one(@definition)
-    assert_empty @metrics.resources
-
-    @definition.measurements = [RecordingStudioLogs::Measurement.new(:views, :count)]
-    @definition.group_by = [:recording_id]
-    RecordingStudioLogs::MetricsBridge.register_one(@definition)
-    assert_empty @metrics.resources
-  end
-
-  def test_a_missing_database_does_not_stop_boot
+  def test_finalize_with_metrics_does_not_query_a_missing_database
     RecordingStudioLogs.reset!
+    previous_metrics = defined?(::RecordingStudioMetrics) ? RecordingStudioMetrics : nil
+    Object.send(:remove_const, :RecordingStudioMetrics) if previous_metrics
+    previous = connection_config
+    metrics = Module.new do
+      def self.register(*)
+        raise "registered a summary before the database exists"
+      end
+
+      def self.for_resource(*)
+        []
+      end
+    end
+    Object.const_set(:RecordingStudioMetrics, metrics)
+    ActiveRecord::Base.establish_connection(missing_database)
     source = self.class.const_set(:BootSource, Class.new(ActiveRecord::Base) do
       self.table_name = "boot_sources"
     end)
     summary = self.class.const_set(:BootSummary, Class.new(ActiveRecord::Base) do
       self.table_name = "boot_summaries"
-
-      def self.table_exists?
-        raise ActiveRecord::NoDatabaseError
-      end
     end)
     RecordingStudioLogs.register(
       model: source, timestamp_column: :occurred_at, root_column: :root_recording_id,
       aggregatable: { root_recording_id: { group: true } }
     )
-    definition = RecordingStudioLogs.aggregate(
+    RecordingStudioLogs.aggregate(
       source: source, name: "host/boot_views", summary_model: summary,
       group_by: [:root_recording_id], measurements: { views: :count }
     )
 
-    refute definition.summary_ready?
-    RecordingStudioLogs::MetricsBridge.register!
-    assert_empty @metrics.resources
+    RecordingStudioLogs.finalize!
+    assert_empty RecordingStudioMetrics.for_resource(:host_boot_views)
   ensure
     RecordingStudioLogs.reset!
+    restore_connection(previous)
+    Object.send(:remove_const, :RecordingStudioMetrics) if defined?(RecordingStudioMetrics)
+    Object.const_set(:RecordingStudioMetrics, previous_metrics) if previous_metrics
     %w[BootSource BootSummary].each do |name|
       self.class.send(:remove_const, name) if self.class.const_defined?(name, false)
     end
   end
 
-  def test_a_second_registration_is_left_alone_when_classes_are_cached
-    @definition.measurements = [RecordingStudioLogs::Measurement.new(:views, :count)]
-    RecordingStudioLogs::MetricsBridge.register_one(@definition)
-    RecordingStudioLogs::MetricsBridge.register_one(@definition)
+  private
 
-    assert_equal 1, @metrics.resources.fetch(:presskits_press_kit_views)[:calls]
+  def connection_config
+    ActiveRecord::Base.connection_db_config
+  rescue ActiveRecord::ConnectionNotEstablished
+    nil
   end
 
-  class FakeSummary
-    attr_accessor :measurements, :group_by
-
-    def initialize
-      @measurements = []
-      @group_by = [:root_recording_id]
-    end
-
-    def summary_ready? = true
-    def name = "presskits/press_kit_views"
-    def metrics_resource = :presskits_press_kit_views
-    def summary_model = self.class.summary_model
-    def log = Struct.new(:root_column).new(:root_recording_id)
-
-    def self.summary_model
-      @summary_model ||= Class.new
+  def restore_connection(previous)
+    if previous
+      ActiveRecord::Base.establish_connection(previous)
+    else
+      ActiveRecord::Base.connection_handler.clear_all_connections!
     end
   end
 
-  class FakeMetrics
-    attr_reader :resources
-
-    def initialize
-      @resources = {}
-    end
-
-    def register(resource, model:, scope_attribute:, &block)
-      dsl = Object.new
-      series = []
-      dsl.define_singleton_method(:timeseries) { |name, **options| series << [name, options] }
-      dsl.instance_eval(&block) if block
-      @resources[resource] = { model: model, scope_attribute: scope_attribute, series: series, calls: 1 }
-    end
-
-    def for_resource(resource)
-      entry = @resources[resource]
-      return [] unless entry
-
-      [resource]
-    end
+  def missing_database
+    {
+      adapter: "postgresql",
+      host: ENV.fetch("DB_HOST", "localhost"),
+      port: ENV.fetch("DB_PORT", 5432).to_i,
+      username: ENV.fetch("DB_USER", "postgres"),
+      password: ENV.fetch("DB_PASSWORD", "postgres"),
+      database: "recording_studio_logs_missing_boot"
+    }
   end
 end

@@ -17,7 +17,7 @@ module RecordingStudioLogs
 
     def register_aggregation(**attributes)
       definition = AggregationDefinition.new(**attributes)
-      @mutex.synchronize { @aggregations[definition.name] = definition }
+      store_aggregation(definition)
       definition.validate_against_log! if definition.log && definition.source_model
       definition
     end
@@ -59,6 +59,20 @@ module RecordingStudioLogs
     end
 
     private
+
+    def store_aggregation(definition)
+      @mutex.synchronize do
+        existing = @aggregations[definition.name]
+        reject_other_owner!(existing, definition)
+        @aggregations[definition.name] = definition
+      end
+    end
+
+    def reject_other_owner!(existing, definition)
+      return if existing.nil? || existing.owner == definition.owner
+
+      raise InvalidRegistration, "#{definition.name} is already registered by #{existing.owner}"
+    end
 
     def validate_aggregations_for(registration)
       aggregations_for(registration).each do |definition|

@@ -26,6 +26,28 @@ class LogsDemonstrationTest < ActiveSupport::TestCase
     assert_includes names, "presskits_press_kit_views.views"
   end
 
+  test "seven views stay on that utc day and a missing day stays empty" do
+    day = Date.new(2026, 10, 14)
+    root_id = SecureRandom.uuid
+    recording_id = SecureRandom.uuid
+    7.times { insert_view(day, "PressKit", root_id, recording_id) }
+    RecordingStudioLogs.aggregate_day!(day)
+    result = RecordingStudioMetrics.execute(
+      "presskits_press_kit_views.views",
+      context: RecordingStudioMetrics::Context.new(
+        scope: :root, system: true, workspace_id: root_id, timezone: "America/Los_Angeles",
+        timestamp: Time.utc(2026, 10, 16, 12)
+      ),
+      start_at: Time.utc(2026, 10, 14),
+      end_at: Time.utc(2026, 10, 16),
+      interval: :day
+    )
+    filled = result.data.select { |point| point[:value] }
+
+    assert_equal [["2026-10-14", 7]], filled.map { |point| [point[:date], point[:value].to_i] }
+    assert result.data.any? { |point| point[:value].nil? }
+  end
+
   test "download counts stay on their own indefinite log" do
     day = Date.new(2026, 10, 14)
     SampleDownload.create!(

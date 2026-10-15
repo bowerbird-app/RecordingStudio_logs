@@ -6,10 +6,10 @@ module RecordingStudioLogs
     module Status
       module_function
 
-      def log_status(log)
+      def log_status(log, blocked:)
         return "Waiting" unless log.loaded?
         return "Missing month" if missing_month?(log)
-        return "Cleanup waiting" if cleanup_waiting?(log)
+        return "Cleanup waiting" if cleanup_waiting?(log, blocked)
 
         "OK"
       end
@@ -54,10 +54,16 @@ module RecordingStudioLogs
         !Partitioning::Catalog.exists?(log.table_name, name)
       end
 
-      def cleanup_waiting?(log)
-        return false if log.indefinite? || !log.partitioned?
+      def cleanup_waiting?(log, blocked)
+        return false if log.indefinite?
 
-        Retention::Cleaner.call(dry_run: true).blocked.any? { |name| name.start_with?(log.table_name) }
+        blocked.any? { |name| blocked_name?(log, name) }
+      end
+
+      def blocked_name?(log, name)
+        return name == log.table_name unless log.partitioned?
+
+        name.match?(/\A#{Regexp.escape(log.table_name)}_\d{4}_\d{2}\z/)
       end
 
       def failed?(definition)

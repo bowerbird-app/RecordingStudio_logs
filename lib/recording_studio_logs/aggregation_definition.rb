@@ -43,6 +43,11 @@ module RecordingStudioLogs
       check_contract!
     end
 
+    def rooted_group?
+      root = log&.root_column
+      root.present? && group_by.include?(root)
+    end
+
     def summary_ready?
       !dormant? && summary_table_ready?
     end

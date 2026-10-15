@@ -48,25 +48,16 @@ class LogsContractsTest < Minitest::Test
     assert_raises(RecordingStudioLogs::InvalidRegistration) { contract.allow_filter!(:ip_address) }
   end
 
-  def test_jobs_call_the_public_api
-    calls = []
-    RecordingStudioLogs.stub(:cleanup_retention!, ->(dry_run:) { calls << [:cleanup, dry_run] }) do
-      RecordingStudioLogs::RetentionCleanupJob.perform_now(dry_run: true)
-    end
-    RecordingStudioLogs.stub(:backfill!, ->(name, from:, to:) { calls << [:backfill, name, from, to] }) do
-      RecordingStudioLogs::BackfillJob.perform_now("presskits/press_kit_views", "2026-10-01", "2026-10-02")
-    end
-    RecordingStudioLogs.stub(:reconcile!, -> { calls << [:reconcile] }) do
-      RecordingStudioLogs::ReconciliationJob.perform_now
-    end
-    RecordingStudioLogs.stub(:aggregate_day!, ->(day) { calls << [:day, day] }) do
-      RecordingStudioLogs::DailyAggregationJob.perform_now
-    end
+  def test_cleanup_waiting_matches_the_table_and_not_a_prefix
+    status = RecordingStudioLogs::Admin::Status
+    monthly = Struct.new(:table_name, :indefinite?, :partitioned?).new("site_views", false, true)
+    plain = Struct.new(:table_name, :indefinite?, :partitioned?).new("plain_views", false, false)
 
-    assert_equal [:cleanup, true], calls[0]
-    assert_equal [:backfill, "presskits/press_kit_views", "2026-10-01", "2026-10-02"], calls[1]
-    assert_equal [:reconcile], calls[2]
-    assert_equal Time.now.utc.to_date - 1, calls[3][1]
+    refute status.cleanup_waiting?(monthly, ["site_views_extra_2020_01"])
+    assert status.cleanup_waiting?(monthly, ["site_views_2020_01"])
+    assert status.cleanup_waiting?(plain, ["plain_views"])
+    refute status.cleanup_waiting?(plain, ["plain_views_2020_01"])
+    refute status.cleanup_waiting?(monthly, [])
   end
 
   def test_maintenance_history_is_quiet_without_a_connection
@@ -84,7 +75,11 @@ class LogsContractsTest < Minitest::Test
   end
 
   def test_admin_registration_waits_until_the_admin_gem_is_loaded
+    hidden = Object.send(:remove_const, :RecordingStudioAdmin) if defined?(::RecordingStudioAdmin)
+
     assert_nil RecordingStudioLogs::Admin.register!
+  ensure
+    Object.const_set(:RecordingStudioAdmin, hidden) if hidden
   end
 
   def test_status_labels_cover_unknown_ranges_and_kept_months

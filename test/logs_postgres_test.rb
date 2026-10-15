@@ -2,6 +2,7 @@
 
 require "test_helper"
 require "pg"
+require "zlib"
 
 class LogsPostgresTest < Minitest::Test
   VIEW_TABLE = "rs_logs_spec_views"
@@ -195,6 +196,49 @@ class LogsPostgresTest < Minitest::Test
     refute RecordingStudioLogs::Partitioning::Catalog.exists?(VIEW_TABLE, name)
   end
 
+  def test_a_late_row_after_success_keeps_the_month
+    name = expired_month
+    insert_view(Date.new(2020, 1, 15), "PressKit")
+    aggregate_month(Date.new(2020, 1, 1), Date.new(2020, 1, 31))
+    insert_view(Date.new(2020, 1, 20), "PressKit")
+
+    blocked = RecordingStudioLogs.cleanup_retention!
+
+    assert_includes blocked.blocked, name
+    assert RecordingStudioLogs::Partitioning::Catalog.exists?(VIEW_TABLE, name)
+
+    aggregate_month(Date.new(2020, 1, 1), Date.new(2020, 1, 31))
+    RecordingStudioLogs.cleanup_retention!
+    refute RecordingStudioLogs::Partitioning::Catalog.exists?(VIEW_TABLE, name)
+  end
+
+  def test_a_dormant_consumer_keeps_the_month
+    name = expired_month
+    aggregate_month(Date.new(2020, 1, 1), Date.new(2020, 1, 31))
+    register_dormant_consumer
+
+    blocked = RecordingStudioLogs.cleanup_retention!
+
+    assert_includes blocked.blocked, name
+    assert RecordingStudioLogs::Partitioning::Catalog.exists?(VIEW_TABLE, name)
+  end
+
+  def test_a_consumer_registered_before_cleanup_keeps_the_month
+    name = expired_month
+    aggregate_month(Date.new(2020, 1, 1), Date.new(2020, 1, 31))
+    register_later_consumer
+
+    blocked = RecordingStudioLogs.cleanup_retention!
+    assert_includes blocked.blocked, name
+    assert RecordingStudioLogs::Partitioning::Catalog.exists?(VIEW_TABLE, name)
+
+    aggregate_month(Date.new(2020, 1, 1), Date.new(2020, 1, 31))
+    RecordingStudioLogs.cleanup_retention!
+    refute RecordingStudioLogs::Partitioning::Catalog.exists?(VIEW_TABLE, name)
+  ensure
+    drop_extra("rs_logs_spec_later_counts", "LaterCount")
+  end
+
   def test_owner_deletion_removes_one_root_from_logs_and_summaries
     day = Date.new(2026, 10, 14)
     kept = SecureRandom.uuid
@@ -213,7 +257,99 @@ class LogsPostgresTest < Minitest::Test
     assert_equal [kept], KitSummary.pluck(:root_recording_id)
   end
 
-  def test_non_partitioned_log_deletes_expired_rows_after_summaries
+  def test_unscoped_summaries_drop_a_deleted_owners_counts
+    day = Date.new(2026, 10, 14)
+    kept = SecureRandom.uuid
+    removed = SecureRandom.uuid
+    register_total
+    insert_view(day, "PressKit", root_recording_id: kept)
+    insert_view(day, "PressKit", root_recording_id: removed)
+    RecordingStudioLogs.aggregate_day!(day)
+    assert_equal 2, TotalSummary.sum(:views)
+
+    RecordingStudioLogs.delete_for_root(root_recording_id: removed)
+
+    assert_equal [kept], ViewLog.pluck(:root_recording_id)
+    assert_equal [kept], KitSummary.pluck(:root_recording_id)
+    assert_equal 1, TotalSummary.sum(:views)
+  ensure
+    drop_extra("rs_logs_spec_totals", "TotalSummary")
+  end
+
+  def test_a_dormant_consumer_blocks_owner_deletion
+    day = Date.new(2026, 10, 14)
+    root_id = SecureRandom.uuid
+    insert_view(day, "PressKit", root_recording_id: root_id)
+    RecordingStudioLogs.aggregate_day!(day)
+    register_dormant_consumer
+
+    RecordingStudioLogs.delete_for_root(root_recording_id: root_id)
+
+    assert_equal [root_id], ViewLog.pluck(:root_recording_id)
+    assert_equal [root_id], KitSummary.pluck(:root_recording_id)
+  end
+
+  def test_a_rebuild_waiting_on_the_aggregation_lock_cannot_restore_a_deleted_root
+    day = Date.new(2026, 10, 14)
+    kept = SecureRandom.uuid
+    removed = SecureRandom.uuid
+    register_total
+    insert_view(day, "PressKit", root_recording_id: kept)
+    insert_view(day, "PressKit", root_recording_id: removed)
+    holding = Queue.new
+    release = Queue.new
+    key = Zlib.crc32("aggregation:presskits/press_kit_views:#{day}")
+    writer = Thread.new do
+      ActiveRecord::Base.connection_pool.with_connection do
+        ActiveRecord::Base.connection.transaction do
+          ActiveRecord::Base.connection.execute("SELECT pg_advisory_xact_lock(#{key})")
+          holding << :locked
+          release.pop
+          KitSummary.create!(day: day, root_recording_id: removed, recording_id: SecureRandom.uuid, views: 1)
+          KitSummary.create!(day: day, root_recording_id: kept, recording_id: SecureRandom.uuid, views: 1)
+        end
+      end
+    end
+    holding.pop
+    deleter = Thread.new { RecordingStudioLogs.delete_for_root(root_recording_id: removed) }
+    wait_for_advisory_wait
+    release << :go
+    assert writer.join(10), "the waiting rebuild did not finish"
+    assert deleter.join(10), "owner deletion did not finish"
+
+    assert_equal [kept], ViewLog.pluck(:root_recording_id)
+    assert_equal [kept], KitSummary.where(day: day).pluck(:root_recording_id)
+    assert_equal 1, TotalSummary.sum(:views)
+  ensure
+    release << :go if defined?(release) && release
+    writer.join(5) if defined?(writer) && writer
+    deleter.join(5) if defined?(deleter) && deleter
+    drop_extra("rs_logs_spec_totals", "TotalSummary")
+  end
+
+  def test_cleanup_rechecks_the_month_while_holding_the_aggregation_lock
+    name = expired_month
+    aggregate_month(Date.new(2020, 1, 1), Date.new(2020, 1, 31))
+    key = Zlib.crc32("aggregation:presskits/press_kit_views:2020-01-01")
+    other = ActiveRecord::Base.connection_pool.checkout
+    other.begin_db_transaction
+    other.execute("SELECT pg_advisory_xact_lock(#{key})")
+    cleanup = Thread.new { RecordingStudioLogs.cleanup_retention! }
+    wait_for_advisory_wait
+    insert_view(Date.new(2020, 1, 18), "PressKit")
+    other.commit_db_transaction
+    report = cleanup.value
+
+    assert_includes report.blocked, name
+    assert RecordingStudioLogs::Partitioning::Catalog.exists?(VIEW_TABLE, name)
+  ensure
+    if other
+      other.rollback_db_transaction if other.open_transactions.positive?
+      ActiveRecord::Base.connection_pool.checkin(other)
+    end
+  end
+
+  def test_non_partitioned_log_keeps_rows_until_a_summary_succeeds
     connection = ActiveRecord::Base.connection
     connection.create_table :rs_logs_spec_plain, id: :uuid do |table|
       table.datetime :occurred_at, null: false
@@ -237,10 +373,12 @@ class LogsPostgresTest < Minitest::Test
     plain.create!(occurred_at: Time.utc(old_day.year, old_day.month, old_day.day, 8),
                   root_recording_id: SecureRandom.uuid)
     plain.create!(occurred_at: Time.now.utc, root_recording_id: SecureRandom.uuid)
-    (old_day...(Time.now.utc - 1.day).to_date).each { |day| RecordingStudioLogs.aggregate_day!(day) }
 
     RecordingStudioLogs.cleanup_retention!
+    assert_equal 2, plain.count
 
+    (old_day...(Time.now.utc - 1.day).to_date).each { |day| RecordingStudioLogs.aggregate_day!(day) }
+    RecordingStudioLogs.cleanup_retention!
     assert_equal 1, plain.count
   ensure
     connection = ActiveRecord::Base.connection
@@ -257,21 +395,53 @@ class LogsPostgresTest < Minitest::Test
     assert_equal 2, rows.size
     assert_includes summaries.map(&:name), "presskits/press_kit_views"
     assert_includes summaries.map(&:name), "press_centers/press_center_views"
-    assert_operator RecordingStudioLogs::Admin::Catalog.attention_count, :>=, 0
-    assert_operator RecordingStudioLogs::Admin::Catalog.stuck_count, :>=, 0
+    assert_equal 0, RecordingStudioLogs::Admin::Catalog.stuck_count
+    month = RecordingStudioLogs::Partitioning::Names.partition(VIEW_TABLE, Time.now.utc.beginning_of_month)
+    RecordingStudioLogs::Partitioning::Catalog.drop(month, ActiveRecord::Base.connection)
+    health = RecordingStudioLogs::Admin::Catalog.logs.find { |row| row.name == ViewLog.name }
+    assert_equal "Missing month", health.status
+    assert_equal 1, RecordingStudioLogs::Admin::Catalog.attention_count
     assert RecordingStudioLogs::Admin::Catalog.partitions_for(ViewLog.name).any?
     assert_empty RecordingStudioLogs::Admin::Catalog.runs_for("missing/aggregation")
   end
 
-  def test_jobs_are_active_job_and_idempotent
+  def test_metrics_sums_seven_views_on_that_day_and_leaves_a_gap_empty
+    require "recording_studio_metrics"
     day = Date.new(2026, 10, 14)
+    root_id = SecureRandom.uuid
+    recording_id = SecureRandom.uuid
+    7.times { insert_view(day, "PressKit", root_recording_id: root_id, recording_id: recording_id) }
+    RecordingStudioLogs.aggregate_day!(day)
+    RecordingStudioLogs.finalize!
+    RecordingStudioLogs.finalize!
+
+    result = RecordingStudioMetrics.execute(
+      "presskits_press_kit_views.views",
+      context: RecordingStudioMetrics::Context.new(
+        scope: :root, system: true, workspace_id: root_id, timezone: "America/Los_Angeles",
+        timestamp: Time.utc(2026, 10, 16, 12)
+      ),
+      start_at: Time.utc(2026, 10, 14), end_at: Time.utc(2026, 10, 16), interval: :day
+    )
+    filled = result.data.select { |point| point[:value] }
+
+    assert_equal([["2026-10-14", 7]], filled.map { |point| [point[:date], point[:value].to_i] })
+    assert(result.data.any? { |point| point[:value].nil? })
+  end
+
+  def test_jobs_rebuild_real_rows
+    day = Time.now.utc.to_date - 1
     insert_view(day, "PressKit")
 
     RecordingStudioLogs::PartitionMaintenanceJob.perform_now
-    RecordingStudioLogs::DailyAggregationJob.perform_now(day.iso8601)
-    RecordingStudioLogs::DailyAggregationJob.perform_now(day.iso8601)
+    RecordingStudioLogs::DailyAggregationJob.perform_now
+    RecordingStudioLogs::DailyAggregationJob.perform_now
+    RecordingStudioLogs::BackfillJob.perform_now("presskits/press_kit_views", day.iso8601, day.iso8601)
+    RecordingStudioLogs::ReconciliationJob.perform_now
+    preview = RecordingStudioLogs::RetentionCleanupJob.perform_now(dry_run: true)
 
     assert_equal 1, KitSummary.sum(:views)
+    assert_kind_of RecordingStudioLogs::Retention::CleanupReport, preview
     assert_kind_of ActiveJob::Base, RecordingStudioLogs::ReconciliationJob.new
   end
 
@@ -356,9 +526,10 @@ class LogsPostgresTest < Minitest::Test
     { root_recording_id: { filter: [:eq], group: true }, recording_id: { filter: [:eq], group: true } }
   end
 
-  def insert_view(day, resource_type, root_recording_id: SecureRandom.uuid)
+  def insert_view(day, resource_type, root_recording_id: SecureRandom.uuid, recording_id: SecureRandom.uuid)
     ViewLog.create!(view_attributes(Time.utc(day.year, day.month, day.day, 12), resource_type: resource_type,
-                                                                                root_recording_id: root_recording_id))
+                                                                                root_recording_id: root_recording_id,
+                                                                                recording_id: recording_id))
   end
 
   def view_attributes(occurred_at, resource_type:, root_recording_id: SecureRandom.uuid,
@@ -369,6 +540,68 @@ class LogsPostgresTest < Minitest::Test
 
   def run_status(name, day)
     RecordingStudioLogs::AggregationRun.find_by!(aggregation_name: name, day: day).status
+  end
+
+  def expired_month
+    RecordingStudioLogs.ensure_partition!(ViewLog, Time.utc(2020, 1, 1))
+    "rs_logs_spec_views_2020_01"
+  end
+
+  def aggregate_month(from, to)
+    each_day_in(from, to) { |day| RecordingStudioLogs.aggregate_day!(day) }
+  end
+
+  def register_dormant_consumer
+    RecordingStudioLogs.aggregate(
+      source: ViewLog, name: "ghost/views", summary_model: "Missing::Summary",
+      group_by: [:root_recording_id], measurements: { views: :count }, owner: "Ghost"
+    )
+  end
+
+  def register_later_consumer
+    create_summary("rs_logs_spec_later_counts")
+    model = self.class.const_set(:LaterCount, Class.new(ActiveRecord::Base) do
+      self.table_name = "rs_logs_spec_later_counts"
+    end)
+    RecordingStudioLogs.aggregate(
+      source: ViewLog, name: "host/later_views", summary_model: model,
+      group_by: [:root_recording_id], measurements: { views: :count }, owner: "Host"
+    )
+  end
+
+  def register_total
+    connection = ActiveRecord::Base.connection
+    connection.drop_table(:rs_logs_spec_totals, if_exists: true)
+    connection.create_table :rs_logs_spec_totals, id: :uuid do |table|
+      table.date :day, null: false
+      table.string :resource_type
+      table.integer :views, null: false, default: 0
+      table.timestamps
+    end
+    model = self.class.const_set(:TotalSummary, Class.new(ActiveRecord::Base) do
+      self.table_name = "rs_logs_spec_totals"
+    end)
+    RecordingStudioLogs.aggregate(
+      source: ViewLog, name: "host/all_views", summary_model: model,
+      group_by: [:resource_type], measurements: { views: :count }, owner: "Host"
+    )
+  end
+
+  def drop_extra(table_name, constant)
+    ActiveRecord::Base.connection.drop_table(table_name, if_exists: true)
+  ensure
+    self.class.send(:remove_const, constant) if self.class.const_defined?(constant, false)
+  end
+
+  def wait_for_advisory_wait
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+    sleep 0.02 until advisory_waiting? || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+    flunk "the aggregation lock was not waited on" unless advisory_waiting?
+  end
+
+  def advisory_waiting?
+    sql = "SELECT COUNT(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted"
+    ActiveRecord::Base.connection.select_value(sql).to_i.positive?
   end
 
   def each_day_in(from, to)

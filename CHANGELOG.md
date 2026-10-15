@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Retention keeps a month when a row arrives after the last success, when a consumer is registered before cleanup, or when a consumer's model is not loaded. The drop holds the aggregation locks and checks again before the partition is removed.
+- Non-partitioned cleanup deletes expired rows only after a successful summary covers them.
+- `delete_for_root` runs in one transaction under the aggregation locks. Unscoped summaries are rebuilt, so a deleted owner's counts do not remain. A dormant consumer blocks the delete.
+- Metrics timeseries over a daily summary read the stored measurement and leave days with no rolled-up data empty.
+- Registering an aggregation name for a second owner is rejected. Admin cleanup status matches the exact table or partition name, from one dry-run per request.
+- Boot still does not query the database. `finalize!` with metrics loaded tolerates a missing database.
+
 ## [0.3.0] - 2026-10-15
 
 ### Added
@@ -136,7 +146,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/bowerbird-app/recording_studio_logs/releases/tag/v0.2.3
 [0.2.2]: https://github.com/bowerbird-app/recording_studio_logs/releases/tag/v0.2.2
 [0.2.1]: https://github.com/bowerbird-app/recording_studio_logs/releases/tag/v0.2.1

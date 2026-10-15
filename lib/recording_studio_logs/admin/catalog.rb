@@ -13,7 +13,14 @@ module RecordingStudioLogs
       module_function
 
       def logs
-        RecordingStudioLogs.logs.map { |log| log_row(log) }
+        waiting = cleanup_blocked
+        RecordingStudioLogs.logs.map { |log| log_row(log, waiting) }
+      end
+
+      def cleanup_blocked
+        Retention::Cleaner.call(dry_run: true).blocked
+      rescue ActiveRecord::NoDatabaseError, ActiveRecord::ConnectionNotEstablished
+        []
       end
 
       def attention_count
@@ -45,13 +52,13 @@ module RecordingStudioLogs
         RecordingStudioLogs.logs.find { |log| log.model_name == key }
       end
 
-      def log_row(log)
+      def log_row(log, blocked)
         stats = storage_for(log)
         LogRow.new(
           id: log.model_name, key: log.model_name, name: log.model_name, owner: log.owner,
           table_name: loaded_table(log), retention: log.retention_label, partitioning: partition_label(log),
           aggregations: RecordingStudioLogs.registry.aggregations_for(log).size,
-          rows: stats[:rows], storage: stats[:storage], status: Status.log_status(log)
+          rows: stats[:rows], storage: stats[:storage], status: Status.log_status(log, blocked: blocked)
         )
       end
 

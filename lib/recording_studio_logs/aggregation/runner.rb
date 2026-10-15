@@ -41,10 +41,12 @@ module RecordingStudioLogs
       end
 
       def replace_day
-        Lock.with(connection, "aggregation:#{aggregation.name}:#{day}") do
+        Lock.with(connection, Lock.key(aggregation.name, day)) do
           delete_day
           insert_day
-          AggregationRun.record!(aggregation_name: aggregation.name, day: day, status: "succeeded")
+          AggregationRun.record!(
+            aggregation_name: aggregation.name, day: day, status: "succeeded", connection: connection
+          )
         end
       end
 
@@ -67,7 +69,8 @@ module RecordingStudioLogs
           aggregation_name: aggregation.name,
           day: day,
           status: "failed",
-          error_message: error.message
+          error_message: error.message,
+          connection: connection
         )
       end
 

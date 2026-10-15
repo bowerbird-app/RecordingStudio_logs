@@ -36,35 +36,50 @@ module RecordingStudioLogs
         Partitioning::Catalog.list(log.table_name, connection).each do |partition|
           next unless expired_partition?(log, partition)
 
-          if complete?(log, days_for(partition))
-            drop(partition.name)
-          else
-            blocked << partition.name
-          end
+          release_partition(log, partition)
+        end
+      end
+
+      def release_partition(log, partition)
+        days = days_for(partition)
+        release(log, partition.name, days, -> { RawRows.newest(connection, log, partition.lower, partition.upper) }) do
+          Partitioning::Catalog.drop(partition.name, connection)
         end
       end
 
       def delete_rows(log)
-        return if oldest_day(log).nil?
+        covered = covered_days(log)
+        return if covered.empty?
 
-        covered = (oldest_day(log)...cutoff(log).to_date).to_a
-        return blocked << log.table_name unless complete?(log, covered)
-
-        drop_rows(log)
+        release(log, log.table_name, covered, -> { RawRows.newest(connection, log, nil, cutoff(log)) }) do
+          RawRows.delete_expired(connection, log, cutoff(log))
+        end
       end
 
-      def drop(name)
-        dropped << name
-        return if dry_run
+      def release(log, label, days, stamp, &)
+        return blocked << label unless fresh?(log, days, stamp.call)
+        return dropped << label if dry_run
 
-        Partitioning::Catalog.drop(name, connection)
+        drop_locked(log, label, days, stamp, &)
       end
 
-      def drop_rows(log)
-        dropped << log.table_name
-        return if dry_run
+      def drop_locked(log, label, days, stamp)
+        Lock.with(connection, *lock_names(log, days)) do
+          if fresh?(log, days, stamp.call)
+            yield
+            dropped << label
+          else
+            blocked << label
+          end
+        end
+      end
 
-        connection.execute(delete_sql(log))
+      def fresh?(log, days, watermark)
+        AggregationRun.log_fresh?(log, days, watermark, connection: connection)
+      end
+
+      def lock_names(log, days)
+        Lock.names_for(RecordingStudioLogs.registry.aggregations_for(log), days)
       end
 
       def expired_partition?(log, partition)
@@ -86,27 +101,11 @@ module RecordingStudioLogs
         days
       end
 
-      def complete?(log, days)
-        return true if days.empty?
+      def covered_days(log)
+        start = RawRows.oldest_day(connection, log, cutoff(log))
+        return [] if start.nil?
 
-        required = RecordingStudioLogs.registry.aggregations_for(log).reject(&:dormant?)
-        required.all? { |definition| AggregationRun.succeeded?(definition.name, days) }
-      end
-
-      def oldest_day(log)
-        quoted_table = connection.quote_table_name(log.table_name)
-        quoted_time = connection.quote_column_name(log.timestamp_column)
-        value = connection.select_value(<<~SQL.squish)
-          SELECT MIN(#{quoted_time}) FROM #{quoted_table}
-          WHERE #{quoted_time} < #{connection.quote(cutoff(log))}
-        SQL
-        value&.to_date
-      end
-
-      def delete_sql(log)
-        quoted_table = connection.quote_table_name(log.table_name)
-        quoted_time = connection.quote_column_name(log.timestamp_column)
-        "DELETE FROM #{quoted_table} WHERE #{quoted_time} < #{connection.quote(cutoff(log))}"
+        (start...cutoff(log).to_date).to_a
       end
     end
   end

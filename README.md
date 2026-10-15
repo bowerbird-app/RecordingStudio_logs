@@ -71,7 +71,7 @@ bin/rails generate recording_studio_logs:migrations
 bin/rails db:migrate
 ```
 
-That adds `recording_studio_logs_aggregation_runs` and `recording_studio_logs_maintenance_runs`. Producing and consuming gems ship their own log and summary migrations.
+That adds `recording_studio_logs_aggregation_runs` and `recording_studio_logs_maintenance_runs`. Producing and consuming gems ship their own log and summary migrations. See `docs/MIGRATION_NOTES.md` for the manual cutover, UTC days, PostgreSQL 15, and what `schema.rb` dumps.
 
 Call `RecordingStudioLogs.finalize!` at the end of the initializer that registers logs. The engine also finalizes on boot.
 
@@ -83,9 +83,9 @@ When `RecordingStudioMetrics` is loaded, a summary that is ready, groups by the 
 
 ## Retention and owner deletion
 
-`RecordingStudioLogs.cleanup_retention!` drops a month only when the whole month is older than the policy and every aggregation that reads that log has finished every day in the month. Otherwise the month stays, and a late insert into an attached month is picked up by the next rebuild. An insert into a dropped month fails visibly.
+`RecordingStudioLogs.cleanup_retention!` drops a month only when the whole month is older than the policy and every aggregation registered for that log has a succeeded run for every UTC day in the month. That includes an aggregation registered later, and one whose model is not loaded yet. Each of those runs must have finished at or after the newest row stored in the month (the event time, or `created_at` when the table has it, whichever is later). A row that arrives after the last success keeps the month until those summaries are rebuilt. The drop takes the same advisory locks as the daily rebuild and checks the rows again inside those locks. An insert into a dropped month fails visibly.
 
-`RecordingStudioLogs.delete_for_root(root_recording_id:)` deletes matching raw rows and summary rows whose `group_by` includes that root column. Summaries that do not group by the root are reported as `unscoped_aggregations` and left in place. Pass `dry_run: true` to count without deleting.
+`RecordingStudioLogs.delete_for_root(root_recording_id:)` deletes matching raw rows and the summary rows whose `group_by` includes that root column. It does this in one transaction, under the same per-day advisory locks the rebuild uses. Summaries that do not group by the root are rebuilt for the affected UTC days, so the deleted owner's counts do not stay in the total. Those names are still reported as `unscoped_aggregations`. A consumer whose model is not loaded blocks the delete. Pass `dry_run: true` to count without deleting.
 
 ## Jobs
 
