@@ -10,6 +10,7 @@ module RecordingStudioLogs
       connection.create_table(table_name, id: false, options: "PARTITION BY RANGE (#{quoted_time})") do |definition|
         definition.uuid :id, null: false, default: -> { "gen_random_uuid()" }
         definition.datetime timestamp_column, null: false
+        definition.datetime :arrived_at, null: false, default: -> { "CURRENT_TIMESTAMP" }
         yield definition if block_given?
       end
       add_partition_primary_key(connection, table_name, quoted_time)

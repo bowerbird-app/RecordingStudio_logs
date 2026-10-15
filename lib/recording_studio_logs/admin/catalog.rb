@@ -18,6 +18,14 @@ module RecordingStudioLogs
       end
 
       def cleanup_blocked
+        state = ActiveSupport::IsolatedExecutionState
+        key = :recording_studio_logs_cleanup
+        return state[key] if state.key?(key)
+
+        state[key] = blocked_names
+      end
+
+      def blocked_names
         Retention::Cleaner.call(dry_run: true).blocked
       rescue ActiveRecord::NoDatabaseError, ActiveRecord::ConnectionNotEstablished
         []

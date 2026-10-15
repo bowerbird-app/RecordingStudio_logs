@@ -12,6 +12,7 @@ module RecordingStudioLogs
       return unless defined?(::RecordingStudioMetrics)
 
       install_summary_series!
+      MetricsBoundary.install!
       RecordingStudioLogs.aggregations.each { |definition| register_one(definition) }
     end
 
@@ -58,14 +59,18 @@ module RecordingStudioLogs
       options = series_options
       RecordingStudioMetrics.register(
         definition.metrics_resource,
-        model: definition.summary_model,
-        scope_attribute: definition.log.root_column
+        model: definition.summary_model
       ) { rows.each { |item| timeseries(item.name, **options.call(item)) } }
     end
 
     def series_options
       lambda { |item|
-        { field: :day, measurement: :sum, value_field: item.name, title: item.name.to_s.humanize }
+        {
+          field: :day, measurement: :sum, value_field: item.name, title: item.name.to_s.humanize,
+          unit: item.operation == :count ? "count" : item.operation.to_s,
+          description: "Fresh UTC-day rollup of #{item.name}. A day with no summary is empty.",
+          semantics: "utc_day_rollup"
+        }
       }
     end
 
@@ -83,8 +88,6 @@ module RecordingStudioLogs
         definition.field.to_s == "day" && RecordingStudioLogs.aggregations.any? do |item|
           item.summary_model == model
         end
-      rescue StandardError
-        false
       end
 
       def day_sql(window)

@@ -10,7 +10,7 @@ module RecordingStudioLogs
 
     def register_log(**attributes)
       registration = LogRegistration.new(**attributes)
-      @mutex.synchronize { @logs[registration.model_name] = registration }
+      store_log(registration)
       validate_aggregations_for(registration)
       registration
     end
@@ -60,6 +60,14 @@ module RecordingStudioLogs
 
     private
 
+    def store_log(registration)
+      @mutex.synchronize do
+        existing = @logs[registration.model_name]
+        reject_other_owner!(existing, registration)
+        @logs[registration.model_name] = registration
+      end
+    end
+
     def store_aggregation(definition)
       @mutex.synchronize do
         existing = @aggregations[definition.name]
@@ -68,10 +76,14 @@ module RecordingStudioLogs
       end
     end
 
-    def reject_other_owner!(existing, definition)
-      return if existing.nil? || existing.owner == definition.owner
+    def reject_other_owner!(existing, incoming)
+      return if existing.nil? || existing.owner == incoming.owner
 
-      raise InvalidRegistration, "#{definition.name} is already registered by #{existing.owner}"
+      raise InvalidRegistration, "#{owner_label(incoming)} is already registered by #{existing.owner}"
+    end
+
+    def owner_label(incoming)
+      incoming.respond_to?(:name) ? incoming.name : incoming.model_name
     end
 
     def validate_aggregations_for(registration)

@@ -168,11 +168,34 @@ class LogsRegistryTest < Minitest::Test
   def test_re_registering_the_same_log_replaces_it
     register_views
     RecordingStudioLogs.register(
-      model: ViewLog, timestamp_column: :occurred_at, retention: 1.day, aggregatable: view_columns
+      model: ViewLog, timestamp_column: :occurred_at, retention: 1.day, owner: "Site views",
+      aggregatable: view_columns
     )
 
     assert_equal 1.day, RecordingStudioLogs.logs.first.declared_retention
     assert_equal 1, RecordingStudioLogs.logs.size
+  end
+
+  def test_a_different_owner_cannot_register_the_same_log
+    register_views
+
+    error = assert_raises(RecordingStudioLogs::InvalidRegistration) do
+      RecordingStudioLogs.register(
+        model: ViewLog, timestamp_column: :occurred_at, retention: 1.day, owner: "Press kits",
+        aggregatable: view_columns
+      )
+    end
+
+    assert_includes error.message, "Site views"
+    assert_equal 12.months, RecordingStudioLogs.logs.first.declared_retention
+  end
+
+  def test_a_log_with_no_aggregations_is_not_fresh
+    register_views
+    log = RecordingStudioLogs.logs.first
+
+    refute RecordingStudioLogs::AggregationRun.log_fresh?(log, [], Time.utc(2026, 10, 14))
+    refute RecordingStudioLogs::AggregationRun.log_fresh?(log, [Date.new(2026, 10, 14)], nil)
   end
 
   def test_a_log_does_not_need_an_aggregation

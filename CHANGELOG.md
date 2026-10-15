@@ -8,11 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- Retention keeps a month when a row arrives after the last success, when a consumer is registered before cleanup, or when a consumer's model is not loaded. The drop holds the aggregation locks and checks again before the partition is removed.
-- Non-partitioned cleanup deletes expired rows only after a successful summary covers them.
+- Retention keeps a month when a row arrives after the last success, when a consumer is registered before cleanup, when a consumer's model is not loaded, or when the log has no aggregations. `arrived_at` is the arrival watermark on partitioned logs. The drop blocks inserts, then reads the newest row again before the partition is removed.
+- Non-partitioned cleanup deletes a UTC day only when a success covers the rows still on that day before the cutoff.
 - `delete_for_root` runs in one transaction under the aggregation locks. Unscoped summaries are rebuilt, so a deleted owner's counts do not remain. A dormant consumer blocks the delete.
 - Metrics timeseries over a daily summary read the stored measurement and leave days with no rolled-up data empty.
-- Registering an aggregation name for a second owner is rejected. Admin cleanup status matches the exact table or partition name, from one dry-run per request.
+- Registering a log or an aggregation name for a second owner is rejected. The same owner can replace it. Admin cleanup status matches the exact table or partition name, from one dry-run per request.
+- Summary metrics are scoped to the root recording id. A bad timezone, a bad start, or `group_by` is a metrics input error.
 - Boot still does not query the database. `finalize!` with metrics loaded tolerates a missing database.
 
 ## [0.3.0] - 2026-10-15

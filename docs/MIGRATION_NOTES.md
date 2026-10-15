@@ -15,6 +15,14 @@ That creates `recording_studio_logs_aggregation_runs` and `recording_studio_logs
 
 Do not auto-repartition a table that is already in production. PostgreSQL requires the partition key in the primary key and in every unique index, and foreign keys have to be recreated. The producing gem ships a manual cutover: create the new partitioned table, copy the rows, and switch writes. New partitioned tables use a primary key of `(id, occurred_at)` with the same UUID `id`.
 
+## Arrival time
+
+`Schema.partitioned_log` adds `arrived_at`, a non-null timestamp that defaults to `CURRENT_TIMESTAMP`. Retention treats that stamp as the row's arrival, including when the table has no `created_at`. A partitioned table created before this column existed should add it:
+
+```
+add_column :your_logs, :arrived_at, :datetime, null: false, default: -> { "CURRENT_TIMESTAMP" }
+```
+
 ## UTC days
 
 A summary day is a UTC half-open window: from midnight UTC inclusive to the next midnight exclusive. Jobs and retention use that same day. Do not also group by the timestamp column.

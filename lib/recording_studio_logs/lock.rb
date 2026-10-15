@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "zlib"
+require "digest"
 
 module RecordingStudioLogs
   module Lock
@@ -14,9 +14,19 @@ module RecordingStudioLogs
     end
 
     def acquire(connection, *names)
-      names.map { |name| Zlib.crc32(name.to_s) }.uniq.sort.each do |key|
-        connection.execute("SELECT pg_advisory_xact_lock(#{key})")
+      names.map { |name| key_pair(name) }.uniq.sort.each do |high, low|
+        connection.execute("SELECT pg_advisory_xact_lock(#{high}, #{low})")
       end
+    end
+
+    def hold_writes(connection, table_name)
+      quoted = connection.quote_table_name(table_name)
+      connection.execute("LOCK TABLE #{quoted} IN SHARE ROW EXCLUSIVE MODE")
+    end
+
+    def key_pair(name)
+      bytes = Digest::SHA256.digest(name.to_s)
+      [bytes[0, 4].unpack1("l>"), bytes[4, 4].unpack1("l>")]
     end
 
     def key(aggregation_name, day)

@@ -1,23 +1,12 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "recording_studio_metrics"
 
 class MetricsBridgeTest < Minitest::Test
   def test_finalize_with_metrics_does_not_query_a_missing_database
     RecordingStudioLogs.reset!
-    previous_metrics = defined?(::RecordingStudioMetrics) ? RecordingStudioMetrics : nil
-    Object.send(:remove_const, :RecordingStudioMetrics) if previous_metrics
     previous = connection_config
-    metrics = Module.new do
-      def self.register(*)
-        raise "registered a summary before the database exists"
-      end
-
-      def self.for_resource(*)
-        []
-      end
-    end
-    Object.const_set(:RecordingStudioMetrics, metrics)
     ActiveRecord::Base.establish_connection(missing_database)
     source = self.class.const_set(:BootSource, Class.new(ActiveRecord::Base) do
       self.table_name = "boot_sources"
@@ -35,14 +24,30 @@ class MetricsBridgeTest < Minitest::Test
     )
 
     RecordingStudioLogs.finalize!
+
     assert_empty RecordingStudioMetrics.for_resource(:host_boot_views)
   ensure
     RecordingStudioLogs.reset!
     restore_connection(previous)
-    Object.send(:remove_const, :RecordingStudioMetrics) if defined?(RecordingStudioMetrics)
-    Object.const_set(:RecordingStudioMetrics, previous_metrics) if previous_metrics
     %w[BootSource BootSummary].each do |name|
       self.class.send(:remove_const, name) if self.class.const_defined?(name, false)
+    end
+  end
+
+  def test_bad_timezone_and_group_by_are_metrics_input_errors
+    RecordingStudioLogs.finalize!
+    context = RecordingStudioMetrics::Context.new(
+      scope: :root, system: true, workspace_id: "ws", timezone: "UTC"
+    )
+
+    assert_raises(RecordingStudioMetrics::Errors::InvalidDateRange) do
+      RecordingStudioMetrics::Context.new(scope: :root, system: true, workspace_id: "ws", timezone: "Not/AZone")
+    end
+    assert_raises(RecordingStudioMetrics::Errors::InvalidFilter) do
+      RecordingStudioMetrics.execute("logs.views", context: context, group_by: "ip_address")
+    end
+    assert_raises(RecordingStudioMetrics::Errors::InvalidFilter) do
+      RecordingStudioMetrics.execute("logs.views", context: context, group_by: "email")
     end
   end
 

@@ -23,7 +23,7 @@ RecordingStudioLogs.register(
 )
 ```
 
-`model:` may be a class or a stable string. A string stays dormant until that gem is loaded, so boot order does not matter. Re-registering the same model or the same aggregation name replaces the previous definition.
+`model:` may be a class or a stable string. A string stays dormant until that gem is loaded, so boot order does not matter. The same owner can register that model or aggregation name again, and the new definition replaces the old one. A different owner is rejected.
 
 `partition_interval:` is `:monthly` or `nil`. New partitioned tables use a primary key of `(id, occurred_at)` and the same UUID `id`. Create them with `RecordingStudioLogs::Schema.partitioned_log`. Include `RecordingStudioLogs::EnsuresPartition` on the model so an insert into a missing month creates that month first.
 
@@ -79,11 +79,11 @@ Call `RecordingStudioLogs.finalize!` at the end of the initializer that register
 
 Summary tables are ordinary ActiveRecord models. Read them directly when metrics is not installed.
 
-When `RecordingStudioMetrics` is loaded, a summary that is ready, groups by the log's root column, and has a count or sum is registered as a timeseries. The metric sums the stored daily column. The resource name is the aggregation name with `/` replaced by `_`. Average, minimum, and maximum stay on the summary table. This gem still writes summaries when metrics is absent.
+When `RecordingStudioMetrics` is loaded, a summary that is ready, groups by the log's root column, and has a count or sum is registered as a timeseries. The metric sums the stored daily column and is scoped to the root recording's id. The series is a fresh UTC-day rollup. A day with no summary stays empty. The resource name is the aggregation name with `/` replaced by `_`. Average, minimum, and maximum stay on the summary table. This gem still writes summaries when metrics is absent. A bad timezone, a bad `start_at`, or `group_by` raises a metrics input error.
 
 ## Retention and owner deletion
 
-`RecordingStudioLogs.cleanup_retention!` drops a month only when the whole month is older than the policy and every aggregation registered for that log has a succeeded run for every UTC day in the month. That includes an aggregation registered later, and one whose model is not loaded yet. Each of those runs must have finished at or after the newest row stored in the month (the event time, or `created_at` when the table has it, whichever is later). A row that arrives after the last success keeps the month until those summaries are rebuilt. The drop takes the same advisory locks as the daily rebuild and checks the rows again inside those locks. An insert into a dropped month fails visibly.
+`RecordingStudioLogs.cleanup_retention!` drops a month only when the whole month is older than the policy and every aggregation for that log has a succeeded run for every UTC day in the month. A log with no aggregations is not fresh, so the month stays. A consumer registered later, and one whose model is not loaded, also keep the month. Each success must have finished at or after the newest arrival in the month. Arrival is the later of the event time and `arrived_at`. Tables created with `Schema.partitioned_log` stamp `arrived_at` in the database at insert. `created_at` counts too, when the table has it. The drop and a non-partitioned delete take a lock that blocks inserts, then read the newest row again before removing anything. A row committed while that lock is waiting is still there when cleanup continues. Non-partitioned cleanup deletes only the UTC days that have a covering success. A day that still has a row before the cutoff, and has no success, stays.
 
 `RecordingStudioLogs.delete_for_root(root_recording_id:)` deletes matching raw rows and the summary rows whose `group_by` includes that root column. It does this in one transaction, under the same per-day advisory locks the rebuild uses. Summaries that do not group by the root are rebuilt for the affected UTC days, so the deleted owner's counts do not stay in the total. Those names are still reported as `unscoped_aggregations`. A consumer whose model is not loaded blocks the delete. Pass `dry_run: true` to count without deleting.
 

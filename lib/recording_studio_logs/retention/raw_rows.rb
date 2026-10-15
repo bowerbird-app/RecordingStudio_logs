@@ -9,15 +9,6 @@ module RecordingStudioLogs
         stamp_columns(log).filter_map { |column| max_stamp(connection, log, column, lower, upper) }.max
       end
 
-      def oldest_day(connection, log, cutoff)
-        value = connection.select_value(min_sql(connection, log, cutoff))
-        value&.to_date
-      end
-
-      def delete_expired(connection, log, cutoff)
-        connection.execute(delete_expired_sql(connection, log, cutoff))
-      end
-
       def days_for(connection, table_name, time_column, root_column, root_recording_id)
         time = connection.quote_column_name(time_column)
         sql = <<~SQL.squish
@@ -40,8 +31,44 @@ module RecordingStudioLogs
 
       def stamp_columns(log)
         columns = [log.timestamp_column.to_s]
-        columns << "created_at" if log.model.column_names.include?("created_at")
+        %w[arrived_at created_at].each { |name| columns << name if log.model.column_names.include?(name) }
         columns
+      end
+
+      def expired_days(connection, log, cutoff)
+        time = connection.quote_column_name(log.timestamp_column)
+        sql = "SELECT DISTINCT #{utc_day(time)} FROM #{quoted_table(connection, log)} " \
+              "WHERE #{time} < #{connection.quote(cutoff)}"
+        connection.select_values(sql).map(&:to_date)
+      end
+
+      def newest_for_days(connection, log, cutoff, days)
+        return if days.blank?
+
+        stamp_columns(log).filter_map { |column| max_on_days(connection, log, column, cutoff, days) }.max
+      end
+
+      def delete_days(connection, log, cutoff, days)
+        return if days.blank?
+
+        time = connection.quote_column_name(log.timestamp_column)
+        list = days.map { |day| connection.quote(day) }.join(", ")
+        sql = "DELETE FROM #{quoted_table(connection, log)} WHERE #{time} < #{connection.quote(cutoff)} " \
+              "AND #{utc_day(time)} IN (#{list})"
+        connection.execute(sql)
+      end
+
+      def max_on_days(connection, log, column, cutoff, days)
+        time = connection.quote_column_name(log.timestamp_column)
+        quoted = connection.quote_column_name(column)
+        list = days.map { |day| connection.quote(day) }.join(", ")
+        sql = "SELECT MAX(#{quoted}) FROM #{quoted_table(connection, log)} " \
+              "WHERE #{time} < #{connection.quote(cutoff)} AND #{utc_day(time)} IN (#{list})"
+        coerce_time(connection.select_value(sql))
+      end
+
+      def utc_day(quoted_time)
+        "((#{quoted_time} AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')::date"
       end
 
       def max_stamp(connection, log, column, lower, upper)
@@ -58,19 +85,6 @@ module RecordingStudioLogs
         return "" if parts.empty?
 
         "WHERE #{parts.join(' AND ')}"
-      end
-
-      def min_sql(connection, log, cutoff)
-        time = connection.quote_column_name(log.timestamp_column)
-        <<~SQL.squish
-          SELECT MIN(#{time}) FROM #{quoted_table(connection, log)}
-          WHERE #{time} < #{connection.quote(cutoff)}
-        SQL
-      end
-
-      def delete_expired_sql(connection, log, cutoff)
-        time = connection.quote_column_name(log.timestamp_column)
-        "DELETE FROM #{quoted_table(connection, log)} WHERE #{time} < #{connection.quote(cutoff)}"
       end
 
       def quoted_table(connection, log)

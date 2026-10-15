@@ -186,6 +186,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_000002) do
   create_table "sample_downloads", primary_key: ["id", "occurred_at"], options: "PARTITION BY RANGE (occurred_at)", force: :cascade do |t|
     t.uuid "id", default: -> { "gen_random_uuid()" }, null: false
     t.datetime "occurred_at", null: false
+    t.datetime "arrived_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.uuid "root_recording_id"
     t.uuid "recording_id"
     t.datetime "created_at", null: false
@@ -195,6 +196,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_000002) do
   create_table "site_views", primary_key: ["id", "occurred_at"], options: "PARTITION BY RANGE (occurred_at)", force: :cascade do |t|
     t.uuid "id", default: -> { "gen_random_uuid()" }, null: false
     t.datetime "occurred_at", null: false
+    t.datetime "arrived_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
     t.string "resource_type", null: false
     t.uuid "root_recording_id"
     t.uuid "recording_id"

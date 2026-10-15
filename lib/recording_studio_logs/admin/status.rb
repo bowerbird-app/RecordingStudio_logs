@@ -61,6 +61,7 @@ module RecordingStudioLogs
       end
 
       def blocked_name?(log, name)
+        return false unless log.loaded?
         return name == log.table_name unless log.partitioned?
 
         name.match?(/\A#{Regexp.escape(log.table_name)}_\d{4}_\d{2}\z/)
@@ -74,7 +75,7 @@ module RecordingStudioLogs
 
       def runs_table?
         AggregationRun.connection.table_exists?(AggregationRun.table_name)
-      rescue ActiveRecord::ConnectionNotEstablished
+      rescue ActiveRecord::NoDatabaseError, ActiveRecord::ConnectionNotEstablished
         false
       end
     end

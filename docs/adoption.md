@@ -2,7 +2,7 @@
 
 This gem is the shared partition, retention, and daily-summary path. Each producing gem still owns its table and its insert path. Do not move those rows into recordings, and do not merge unrelated logs into one site-view table.
 
-v1 is daily only. A day is a UTC half-open window. NULL group columns stay as their own group. Rebuilding a day replaces that day's summary rows. A late row keeps its month until every aggregation for that log has a success finished at or after the row. That includes a consumer registered after the last rebuild, and a consumer whose gem is not loaded. Inserts into a dropped month fail on purpose.
+v1 is daily only. A day is a UTC half-open window. NULL group columns stay as their own group. Rebuilding a day replaces that day's summary rows. A late row keeps its month until every aggregation for that log has a success finished at or after the row's arrival. `Schema.partitioned_log` records that arrival in `arrived_at`. A log with no aggregations is not fresh, and neither is a consumer registered after the last rebuild or one whose gem is not loaded. Cleanup holds a lock that blocks inserts for the whole check and drop, then reads the newest arrival again. A row committed while cleanup is waiting keeps the month.
 
 Summaries that omit `root_recording_id` are rebuilt for the affected days when an owner is deleted, so the deleted owner's counts do not stay in the total. `delete_for_root` still reports those names as unscoped. Group by the root column when a summary should drop that owner's rows instead of rebuilding the whole day. A consumer whose model is not loaded blocks the delete.
 

@@ -18,7 +18,7 @@ module RecordingStudioLogs
 
     def self.table_ready?
       connection.table_exists?(table_name)
-    rescue ActiveRecord::ConnectionNotEstablished
+    rescue ActiveRecord::NoDatabaseError, ActiveRecord::ConnectionNotEstablished
       false
     end
   end

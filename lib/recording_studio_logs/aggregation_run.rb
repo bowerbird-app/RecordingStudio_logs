@@ -17,12 +17,12 @@ module RecordingStudioLogs
       connection.execute(upsert(connection, aggregation_name, day, status, error_message))
     end
 
-    def self.log_fresh?(log, days, watermark, connection: self.connection)
-      return true if days.empty?
+    def self.log_fresh?(log, days, watermark, connection: nil)
+      definitions = RecordingStudioLogs.registry.aggregations_for(log)
+      return false if days.empty? || definitions.empty?
 
-      RecordingStudioLogs.registry.aggregations_for(log).all? do |definition|
-        fresh?(definition.name, days, watermark, connection: connection)
-      end
+      connection ||= self.connection
+      definitions.all? { |definition| fresh?(definition.name, days, watermark, connection: connection) }
     end
 
     def self.fresh?(aggregation_name, days, watermark, connection: self.connection)
@@ -51,15 +51,8 @@ module RecordingStudioLogs
         WHERE aggregation_name = #{connection.quote(aggregation_name)}
           AND status = 'succeeded' AND day IN (#{list})
       SQL
-      connection.select_values(sql).filter_map { |value| coerce_time(value) }
+      connection.select_values(sql).filter_map { |value| Retention::RawRows.coerce_time(value) }
     end
-
-    def self.coerce_time(value)
-      return value if value.is_a?(Time)
-      return if value.blank?
-
-      Time.find_zone!("UTC").parse(value.to_s)
-    end
-    private_class_method :upsert, :succeeded_at, :coerce_time
+    private_class_method :upsert, :succeeded_at
   end
 end

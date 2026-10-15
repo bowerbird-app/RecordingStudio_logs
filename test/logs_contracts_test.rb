@@ -50,8 +50,8 @@ class LogsContractsTest < Minitest::Test
 
   def test_cleanup_waiting_matches_the_table_and_not_a_prefix
     status = RecordingStudioLogs::Admin::Status
-    monthly = Struct.new(:table_name, :indefinite?, :partitioned?).new("site_views", false, true)
-    plain = Struct.new(:table_name, :indefinite?, :partitioned?).new("plain_views", false, false)
+    monthly = Struct.new(:table_name, :indefinite?, :partitioned?, :loaded?).new("site_views", false, true, true)
+    plain = Struct.new(:table_name, :indefinite?, :partitioned?, :loaded?).new("plain_views", false, false, true)
 
     refute status.cleanup_waiting?(monthly, ["site_views_extra_2020_01"])
     assert status.cleanup_waiting?(monthly, ["site_views_2020_01"])
@@ -61,17 +61,27 @@ class LogsContractsTest < Minitest::Test
   end
 
   def test_maintenance_history_is_quiet_without_a_connection
-    raiser = Object.new
-    def raiser.table_exists?(*)
-      raise ActiveRecord::ConnectionNotEstablished
-    end
+    previous = ActiveRecord::Base.connection_db_config
+    ActiveRecord::Base.establish_connection(
+      adapter: "postgresql", host: ENV.fetch("DB_HOST", "localhost"),
+      username: ENV.fetch("DB_USER", "postgres"), password: ENV.fetch("DB_PASSWORD", "postgres"),
+      database: "recording_studio_logs_missing_boot"
+    )
 
-    RecordingStudioLogs::MaintenanceRun.stub(:connection, raiser) do
-      assert_nil RecordingStudioLogs::MaintenanceRun.latest("partitions", "site_views")
-      assert_nil RecordingStudioLogs::MaintenanceRun.record!(
-        task: "partitions", subject: "site_views", status: "succeeded"
-      )
-    end
+    assert_nil RecordingStudioLogs::MaintenanceRun.latest("partitions", "site_views")
+    assert_nil RecordingStudioLogs::MaintenanceRun.record!(
+      task: "partitions", subject: "site_views", status: "succeeded"
+    )
+  ensure
+    ActiveRecord::Base.establish_connection(previous) if previous
+  end
+
+  def test_cleanup_status_ignores_an_unloaded_log
+    log = RecordingStudioLogs::LogRegistration.new(
+      model: "Missing::PlainLog", timestamp_column: :occurred_at, partition_interval: nil
+    )
+
+    refute RecordingStudioLogs::Admin::Status.cleanup_waiting?(log, ["missing_plain_logs"])
   end
 
   def test_admin_registration_waits_until_the_admin_gem_is_loaded

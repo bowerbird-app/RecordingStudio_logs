@@ -48,12 +48,40 @@ module RecordingStudioLogs
       end
 
       def delete_rows(log)
-        covered = covered_days(log)
+        covered, waiting = fresh_days(log)
+        blocked << log.table_name if waiting.any?
         return if covered.empty?
 
-        release(log, log.table_name, covered, -> { RawRows.newest(connection, log, nil, cutoff(log)) }) do
-          RawRows.delete_expired(connection, log, cutoff(log))
+        release_rows(log, covered)
+      end
+
+      def release_rows(log, covered)
+        return dropped << log.table_name if dry_run
+
+        lock_row_delete(log, covered)
+      end
+
+      def lock_row_delete(log, covered)
+        Lock.with(connection, *lock_names(log, covered)) do
+          Lock.hold_writes(connection, log.table_name)
+          delete_fresh_days(log, covered)
         end
+      end
+
+      def delete_fresh_days(log, covered)
+        current = fresh_days(log).first & covered
+        return blocked << log.table_name if current.empty?
+
+        RawRows.delete_days(connection, log, cutoff(log), current)
+        dropped << log.table_name
+      end
+
+      def fresh_days(log)
+        RawRows.expired_days(connection, log, cutoff(log)).partition { |day| day_fresh?(log, day) }
+      end
+
+      def day_fresh?(log, day)
+        fresh?(log, [day], RawRows.newest_for_days(connection, log, cutoff(log), [day]))
       end
 
       def release(log, label, days, stamp, &)
@@ -63,15 +91,18 @@ module RecordingStudioLogs
         drop_locked(log, label, days, stamp, &)
       end
 
-      def drop_locked(log, label, days, stamp)
+      def drop_locked(log, label, days, stamp, &)
         Lock.with(connection, *lock_names(log, days)) do
-          if fresh?(log, days, stamp.call)
-            yield
-            dropped << label
-          else
-            blocked << label
-          end
+          finish_drop(log, label, days, stamp, &)
         end
+      end
+
+      def finish_drop(log, label, days, stamp)
+        Lock.hold_writes(connection, log.table_name)
+        return blocked << label unless fresh?(log, days, stamp.call)
+
+        yield
+        dropped << label
       end
 
       def fresh?(log, days, watermark)
@@ -99,13 +130,6 @@ module RecordingStudioLogs
           date += 1
         end
         days
-      end
-
-      def covered_days(log)
-        start = RawRows.oldest_day(connection, log, cutoff(log))
-        return [] if start.nil?
-
-        (start...cutoff(log).to_date).to_a
       end
     end
   end

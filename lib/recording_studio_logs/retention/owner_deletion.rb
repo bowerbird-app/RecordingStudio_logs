@@ -26,8 +26,8 @@ module RecordingStudioLogs
         days = affected_days
         Lock.with(connection, *Lock.names_for(loaded_consumers, days)) do
           current = affected_days
-          Lock.acquire(connection, *Lock.names_for(loaded_consumers, current))
-          report(delete_and_rebuild(current))
+          extra = Lock.names_for(loaded_consumers, current - days)
+          report(Lock.with(connection, *extra) { delete_and_rebuild(current) })
         end
       end
 
