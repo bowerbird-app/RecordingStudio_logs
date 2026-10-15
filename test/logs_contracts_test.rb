@@ -61,7 +61,7 @@ class LogsContractsTest < Minitest::Test
   end
 
   def test_maintenance_history_is_quiet_without_a_connection
-    previous = ActiveRecord::Base.connection_db_config
+    previous = defined_db_config
     ActiveRecord::Base.establish_connection(
       adapter: "postgresql", host: ENV.fetch("DB_HOST", "localhost"),
       username: ENV.fetch("DB_USER", "postgres"), password: ENV.fetch("DB_PASSWORD", "postgres"),
@@ -73,7 +73,17 @@ class LogsContractsTest < Minitest::Test
       task: "partitions", subject: "site_views", status: "succeeded"
     )
   ensure
-    ActiveRecord::Base.establish_connection(previous) if previous
+    if previous
+      ActiveRecord::Base.establish_connection(previous)
+    else
+      ActiveRecord::Base.remove_connection
+    end
+  end
+
+  def defined_db_config
+    ActiveRecord::Base.connection_db_config
+  rescue ActiveRecord::ConnectionNotEstablished
+    nil
   end
 
   def test_cleanup_status_ignores_an_unloaded_log
