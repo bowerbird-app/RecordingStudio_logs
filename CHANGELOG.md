@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional read-only admin screens when `RecordingStudioAdmin` is loaded. They show health and summary progress, not raw rows.
 - A dummy site-view log with press-kit and press-center summaries, plus an indefinite download-shaped log.
 
+### Fixed
+- Boot stays up when the database does not exist yet. Metrics registration waits until the summary table can be checked, so an asset build can load the app before `db:create`.
+
 ### Removed
 - The template page model, page migration, and example capability.
 

@@ -44,7 +44,7 @@ module RecordingStudioLogs
     end
 
     def summary_ready?
-      !dormant? && summary_model.table_exists?
+      !dormant? && summary_table_ready?
     end
 
     def metrics_resource
@@ -56,6 +56,12 @@ module RecordingStudioLogs
     end
 
     private
+
+    def summary_table_ready?
+      summary_model.table_exists?
+    rescue ActiveRecord::NoDatabaseError, ActiveRecord::ConnectionNotEstablished
+      false
+    end
 
     def validate_shape!
       unless NAME_PATTERN.match?(name)

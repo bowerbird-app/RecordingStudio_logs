@@ -43,6 +43,37 @@ class MetricsBridgeTest < Minitest::Test
     assert_empty @metrics.resources
   end
 
+  def test_a_missing_database_does_not_stop_boot
+    RecordingStudioLogs.reset!
+    source = self.class.const_set(:BootSource, Class.new(ActiveRecord::Base) do
+      self.table_name = "boot_sources"
+    end)
+    summary = self.class.const_set(:BootSummary, Class.new(ActiveRecord::Base) do
+      self.table_name = "boot_summaries"
+
+      def self.table_exists?
+        raise ActiveRecord::NoDatabaseError
+      end
+    end)
+    RecordingStudioLogs.register(
+      model: source, timestamp_column: :occurred_at, root_column: :root_recording_id,
+      aggregatable: { root_recording_id: { group: true } }
+    )
+    definition = RecordingStudioLogs.aggregate(
+      source: source, name: "host/boot_views", summary_model: summary,
+      group_by: [:root_recording_id], measurements: { views: :count }
+    )
+
+    refute definition.summary_ready?
+    RecordingStudioLogs::MetricsBridge.register!
+    assert_empty @metrics.resources
+  ensure
+    RecordingStudioLogs.reset!
+    %w[BootSource BootSummary].each do |name|
+      self.class.send(:remove_const, name) if self.class.const_defined?(name, false)
+    end
+  end
+
   def test_a_second_registration_is_left_alone_when_classes_are_cached
     @definition.measurements = [RecordingStudioLogs::Measurement.new(:views, :count)]
     RecordingStudioLogs::MetricsBridge.register_one(@definition)
