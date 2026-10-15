@@ -1,173 +1,122 @@
-# GemTemplate
+# RecordingStudioLogs
 
-Internal template for building Rails engine addons on top of Recording Studio 4.x.
+Shared PostgreSQL logging for Recording Studio gems. A producing gem stores high-volume rows in its own table. Other gems register daily summaries over the columns that producer allows. RecordingStudio_metrics stays the query API. This gem does not depend on it.
 
-## What's Included
+Logs are exhaust. They are not recordings, and they are not `log_event!` history.
 
-- **Recording Studio** 4.x gem pinned and configured
-- **Devise** authentication with a pre-seeded admin user
-- **Workspace**, **Folder**, and **Page** recordables seeded into the dummy host app
-- **FlatPack** UI component library for all views
-- **Dummy app** (`test/dummy/`) with a FlatPack sign-in screen, a home page on Recording Studio's default layout, mounted Recording Studio routes, and FlatPack's built-in rounded theme
+## Register a log
 
-Authenticated dummy pages use Recording Studio's shared default layout (`RecordingStudio::UsesDefaultLayout`) plus FlatPack CSS and JS. Devise keeps its own sign-in layout. Dummy `/docs/*` pages stay in the dummy app as a host-app sandbox; they are not the product README.
-
-## Quick Start
-
-### Cursor Cloud Agent (Recommended)
-
-A Cloud Agent boots this repo into a ready-to-use dev environment with no manual steps. The setup lives in `.cursor/`:
-
-- `install.sh` provisions Ruby (pinned by `.ruby-version`), PostgreSQL 16, all gems, the seeded dummy database, and compiled CSS at build time, then fetches Recording Studio skills.
-- `start.sh` starts PostgreSQL on every boot.
-- `environment.json` runs the `rails-server` and `tailwind-watch` terminals and exposes port 3000.
-
-Open port 3000 and sign in at `/users/sign_in`. No environment variables are required — the dummy app's `database.yml` defaults match the provisioned PostgreSQL cluster.
-
-### GitHub Codespaces
-
-1. Click **Code** → **Codespaces** → **Create codespace**
-2. Wait for setup to complete
-3. Run:
-   ```bash
-   cd test/dummy
-   bin/rails db:setup
-   bin/dev
-   ```
-4. Open port 3000 — you'll land on the dummy app home page and can sign in at `/users/sign_in`
-
-The dummy app is intended as a host-app validation surface for authentication, FlatPack rendering, Tailwind source scanning, and Recording Studio route wiring.
-
-Dummy credentials (`test/dummy/config/credentials.yml.enc`) are encrypted with the shared RecordingStudio_* development master key. Set `RAILS_MASTER_KEY` or put that key in `test/dummy/config/master.key` (gitignored). Keep the encrypted file; do not generate a per-repo dummy key.
-
-### Login Credentials
-
-| Field    | Value             |
-|----------|-------------------|
-| Email    | admin@admin.com   |
-| Password | Password          |
-
-The login form is prefilled with these credentials for fast access.
-
-### Useful Routes
-
-- `/` — dummy app home page
-- `/users/sign_in` — Devise sign-in page
-- `/recording_studio` — redirect to `/` while the mounted Recording Studio engine remains data/API-focused
-- `/docs/install`, `/docs/config`, `/docs/recordable_types`, `/docs/recordings_tree`, `/docs/gem_views`, `/docs/methods` — dummy-only starter pages
-
-The home page in `test/dummy/app/views/home/index.html.erb` is a starting point for a minimal demo of the gem's primary behavior. Keep deeper explanations on the dummy docs pages, not in this README.
-
-## Architecture
-
-### Root Recording Pattern
-
-This template follows Recording Studio's root recording pattern:
-
-- **Workspace** is the top-level recordable
-- **Folder** and **Page** demonstrate nested recordables under the workspace root
-- Each configured recordable declares `recording_studio_recordable(...)`; strict declaration validation stays enabled
-- A root `RecordingStudio::Recording` wraps the Workspace
-- `Current.actor` is set from `current_user` (Devise) in `ApplicationController`
-
-### Extending Recording Studio
-
-To add new recordable types:
-
-1. Create your model (e.g., `Page`, `Comment`)
-2. Register it in `config/initializers/recording_studio.rb`:
-   ```ruby
-   RecordingStudio.configure do |config|
-     config.recordable_types = ["Workspace", "YourNewType"]
-   end
-   ```
-3. Declare whether the model can be a root and which parents may contain it:
-   ```ruby
-   class YourNewType < ApplicationRecord
-     recording_studio_recordable label: "Your new type",
-                                 root: false,
-                                 allowed_parent_types: ["Workspace", "Folder"]
-   end
-   ```
-4. Validate declarations and create recordings under the root:
-   ```ruby
-   RecordingStudio.validate_recordable_declarations!
-   root_recording = RecordingStudio.root_recording_for(workspace)
-   root_recording.record(YourNewType) do |record|
-     record.title = "Example"
-   end
-   ```
-
-### Recordable Declarations
-
-Every configured ActiveRecord recordable type must declare its hierarchy rules. Declarations are required; they are not version-specific.
-
-- `Workspace` declares `root: true`
-- `Folder` and `Page` declare `root: false, allowed_parent_types: ["Workspace", "Folder"]`
-- `config.require_recordable_declarations = true` remains enabled in the dummy app initializer
-
-Useful console checks:
+The producing gem declares the table, the timestamp, retention, and the columns other gems may use.
 
 ```ruby
-RecordingStudio.validate_recordable_declarations!
-RecordingStudio.root_recordable_types
-RecordingStudio.allowed_parent_types_for("Page")
+RecordingStudioLogs.register(
+  model: "DownloadLog",
+  timestamp_column: :occurred_at,
+  retention: 90.days,
+  root_column: :root_recording_id,
+  partition_interval: :monthly,
+  aggregatable: {
+    root_recording_id: { filter: [:eq], group: true },
+    recording_id: { filter: [:eq], group: true },
+    duration_ms: { measurements: [:sum] }
+  }
+)
 ```
 
-### Capabilities
+`model:` may be a class or a stable string. A string stays dormant until that gem is loaded, so boot order does not matter. The same owner can register that model or aggregation name again, and the new definition replaces the old one. A different owner is rejected.
 
-Capability mixins are opt-in. Installing this gem does not enable mixins on host types.
+`partition_interval:` is `:monthly` or `nil`. New partitioned tables use a primary key of `(id, occurred_at)` and the same UUID `id`. Create them with `RecordingStudioLogs::Schema.partitioned_log`. Include `RecordingStudioLogs::EnsuresPartition` on the model so an insert into a missing month creates that month first.
 
-The dummy Workspace enables Accessible because that addon is bundled:
+A host can override one table's retention without editing the gem:
 
 ```ruby
-RecordingStudio.enable_capability(:accessible, on: Workspace)
+RecordingStudioLogs.configure do |config|
+  config.months_ahead = 2
+  config.reconciliation_days = 3
+  config.retention_for("DownloadLog", 30.days)
+end
 ```
 
-The template also ships one example mixin that uses core 4.2.0's `include_for` factory:
+`:indefinite` is the retention that never deletes. v1 has one policy per table.
+
+## Aggregations
+
+A consumer registers a daily summary. The name is namespaced, `owner/purpose`.
 
 ```ruby
-include RecordingStudio::Capabilities::Example.to(label: "dummy workspace")
+RecordingStudioLogs.aggregate(
+  source: "DownloadLog",
+  name: "presskits/press_kit_views",
+  summary_model: "PressKitViewSummary",
+  filter: { resource_type: "PressKit" },
+  group_by: %i[root_recording_id recording_id],
+  measurements: { views: :count, total_duration: { sum: :duration_ms } }
+)
 ```
 
-`.to` wraps `RecordingStudio::Capabilities.include_for`. It does not add a fourth verb and it does not call `enable_capability` / `set_capability_options` itself. Folder and Page stay without the example mixin.
+The day is the time dimension. It is a UTC half-open window, `[day, next day)`. Do not also `group_by` the timestamp. Filters are equality on declared columns. `group_by` and measurements must be declared by the producer. Count does not need a column. Sum, average, minimum, and maximum do.
 
-Use core `RecordingStudio::Hooks` and `RecordingStudio::Services::BaseService`. Do not copy those classes into a new addon.
+Each aggregation has its own summary table and its own migration. Initializers do not create tables. The summary needs `id`, `day`, the group columns, one integer or numeric column per measurement, and timestamps. Unique index the identity columns with `nulls_not_distinct: true`, so SQL NULL is its own group. `RecordingStudioLogs::Schema.summary_index` builds that index.
 
-### FlatPack UI Components
+Two aggregations can read the same raw rows. Rebuilding a day deletes that day's summary rows and inserts them again, so a rerun does not double-count. One failure is recorded on that aggregation and does not roll back a sibling that already finished.
 
-All views use FlatPack ViewComponents. Available components include:
+Hourly rollups, distinct counts, and event corrections are out of this version.
 
-- `FlatPack::Button::Component` — Buttons (`:primary`, `:secondary`, `:ghost`)
-- `FlatPack::Card::Component` — Cards (`:default`, `:elevated`, `:outlined`)
-- `FlatPack::Alert::Component` — Alerts (`:success`, `:error`, `:warning`, `:info`)
-- `FlatPack::Badge::Component` — Status badges
-- `FlatPack::Table::Component` — Data tables
-- `FlatPack::TextInput::Component`, `EmailInput`, `PasswordInput` — Form inputs
-- `FlatPack::PageNav::Component` — Default-layout page navigation
-- `FlatPack::PageTitle::Component` — Page titles
+## Build the tables
 
-Use the live FlatPack demo app at [flatpack.bowerbird.io](https://flatpack.bowerbird.io/) as the approved UI reference for current shared patterns. Its component table is the fastest way to discover available FlatPack components before introducing new custom UI.
+Copy the runs migration into the host, then migrate:
 
-See the [FlatPack README](https://github.com/bowerbird-app/flatpack) for full documentation.
+```bash
+bin/rails generate recording_studio_logs:migrations
+bin/rails db:migrate
+```
 
-## Tech Stack
+That adds `recording_studio_logs_aggregation_runs` and `recording_studio_logs_maintenance_runs`. Producing and consuming gems ship their own log and summary migrations. See `docs/MIGRATION_NOTES.md` for the manual cutover, UTC days, PostgreSQL 15, and what `schema.rb` dumps.
 
-| Component       | Version |
-|-----------------|---------|
-| Ruby            | 3.3+    |
-| Rails           | 8.1+    |
-| PostgreSQL      | 16      |
-| TailwindCSS     | 4       |
-| RecordingStudio | 4.x (`~> 4.2` in the gemspec; dummy GitHub tag `v4.6.0`) |
-| Accessible      | dummy GitHub tag `v0.18.0` |
-| Trashable       | dummy GitHub tag `v0.10.0` (`require: false`; query-only via Accessible) |
-| Root Switchable | dummy GitHub tag `v0.9.0` |
-| FlatPack        | dummy GitHub tag `v0.1.196` |
-| Devise          | latest  |
+Call `RecordingStudioLogs.finalize!` at the end of the initializer that registers logs. The engine also finalizes on boot.
 
-The dummy Gemfile keeps `github:` sources so Bundler can fetch those gems. The gemspec still pins `recording_studio` to `~> 4.2` so copied addons declare the core dependency even when GitHub is the fetch source.
+## Querying
 
-## Documentation
+Summary tables are ordinary ActiveRecord models. Read them directly when metrics is not installed.
 
-The original gem template documentation is preserved in `docs/gem_template/` as architectural reference material. Use it as background on the engine conventions; this README and the dummy app are the source of truth for the Recording Studio addon workflow.
+When `RecordingStudioMetrics` is loaded, a summary that is ready, groups by the log's root column, and has a count or sum is registered as a timeseries. The metric sums the stored daily column and is scoped to the root recording's id. The series is a fresh UTC-day rollup. A day with no summary stays empty. The resource name is the aggregation name with `/` replaced by `_`. Average, minimum, and maximum stay on the summary table. This gem still writes summaries when metrics is absent. A bad timezone, a bad `start_at`, or `group_by` passed to `RecordingStudioMetrics.execute` raises a metrics input error. The metrics HTTP execute handler does not forward `group_by`, so that query parameter is ignored there.
+
+## Retention and owner deletion
+
+`RecordingStudioLogs.cleanup_retention!` drops a month only when the whole month is older than the policy and every aggregation for that log has a succeeded run for every UTC day in the month. A log with no aggregations is not fresh, so the month stays. A consumer registered later, and one whose model is not loaded, also keep the month. Each success must have finished at or after the newest arrival in the month. Arrival is the later of the event time and `arrived_at`. Tables created with `Schema.partitioned_log` stamp `arrived_at` in the database at insert. `created_at` counts too, when the table has it. The drop and a non-partitioned delete take a lock that blocks inserts, then read the newest row again before removing anything. A row committed while that lock is waiting is still there when cleanup continues. Non-partitioned cleanup deletes only the UTC days that have a covering success. A day that still has a row before the cutoff, and has no success, stays.
+
+`RecordingStudioLogs.delete_for_root(root_recording_id:)` deletes matching raw rows and the summary rows whose `group_by` includes that root column. It does this in one transaction, under the same per-day advisory locks the rebuild uses. Summaries that do not group by the root are rebuilt for the affected UTC days, so the deleted owner's counts do not stay in the total. Those names are still reported as `unscoped_aggregations`. A consumer whose model is not loaded blocks the delete. Pass `dry_run: true` to count without deleting.
+
+## Jobs
+
+The host schedules these ActiveJob classes. This gem does not start Sidekiq or a cron runner.
+
+- `RecordingStudioLogs::PartitionMaintenanceJob` keeps the previous month through `months_ahead`.
+- `RecordingStudioLogs::DailyAggregationJob` rebuilds yesterday (UTC) for every ready aggregation.
+- `RecordingStudioLogs::ReconciliationJob` rebuilds the last `reconciliation_days` before today, so a late row is included.
+- `RecordingStudioLogs::BackfillJob` rebuilds one aggregation across an inclusive date range.
+- `RecordingStudioLogs::RetentionCleanupJob` runs retention. `perform(dry_run: true)` previews.
+
+The same entry points exist as `RecordingStudioLogs.maintain_partitions!`, `aggregate_day!`, `reconcile!`, `backfill!`, and `cleanup_retention!`.
+
+## Moving an existing table
+
+Do not auto-repartition a table that is already in production. PostgreSQL needs the partition key in the primary key and in every unique index, and foreign keys have to be recreated. Ship a manual cutover in the producing gem: add the new partitioned table, copy, and switch writes. See `docs/adoption.md` for the gems that already have log tables.
+
+## Admin
+
+Screens register only when `RecordingStudioAdmin` is loaded. They are read-only, granted through Accessible on an admin root, and they do not show raw log rows. The section key is `logs`. The screens are `log_health`, `log_detail`, `summaries`, and `summary_detail`.
+
+## Dummy app
+
+The dummy app is a host, not a product. It registers a partitioned site-view log, daily press-kit and press-center summaries over those same rows, and an indefinite download-shaped log. Press centers do not have a gem. This dummy is that consumer. Admin is not mounted here: `recording_studio_admin` 2.3.2 needs Flatpack `~> 0.1.207`, and this dummy stays on the pin below.
+
+Dummy pins:
+
+- dummy GitHub tag `v4.6.0` for Recording Studio
+- dummy GitHub tag `v0.18.0` for Accessible
+- dummy GitHub tag `v0.10.0` for Trashable
+- dummy GitHub tag `v0.9.0` for Root Switchable
+- dummy GitHub tag `v0.1.196` for Flatpack
+
+Boot instructions live in `.cursor/install.sh` and `test/dummy/README.md`. Sign in at `/users/sign_in` with `admin@admin.com` / `Password`.
