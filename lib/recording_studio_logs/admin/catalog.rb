@@ -4,7 +4,9 @@ module RecordingStudioLogs
   module Admin
     LogRow = Data.define(:id, :key, :name, :owner, :table_name, :retention, :partitioning, :aggregations, :rows,
                          :storage, :status)
+    ConfigRow = Data.define(:id, :setting, :value)
     PartitionRow = Data.define(:id, :name, :range, :rows, :storage, :expiration)
+
     AggregationRow = Data.define(:id, :key, :name, :source, :owner, :filters, :grouping, :measurements, :interval,
                                  :last_success, :status)
     RunRow = Data.define(:id, :day, :status, :finished_at, :error_message)
@@ -44,6 +46,25 @@ module RecordingStudioLogs
         return [] if log.nil? || !log.partitioned? || !log.loaded?
 
         Partitioning::Catalog.list(log.table_name).map { |partition| partition_row(log, partition) }
+      end
+
+      def configuration_for(key)
+        log = log_for(key)
+        return [] if log.nil?
+
+        configuration_pairs(log).map { |id, setting, value| ConfigRow.new(id: id, setting: setting, value: value) }
+      end
+
+      def configuration_pairs(log)
+        [
+          ["owner", "Owning gem", log.owner],
+          ["model", "Model", log.model_name],
+          ["table", "Table", loaded_table(log)],
+          ["timestamp", "Timestamp column", log.timestamp_column.to_s],
+          ["root", "Root column", log.root_column.to_s.presence || "None"],
+          ["retention", "Retention", log.retention_label],
+          ["interval", "Partition interval", partition_label(log)]
+        ]
       end
 
       def aggregations
@@ -111,10 +132,10 @@ module RecordingStudioLogs
       end
 
       def storage_for(log)
-        return { rows: nil, storage: nil } unless log.loaded? && log.partitioned?
+        return { rows: nil, storage: nil } unless log.loaded?
 
-        parts = Partitioning::Catalog.list(log.table_name)
-        { rows: parts.sum { |part| part.estimated_rows.to_i }, storage: Status.bytes(parts.sum(&:bytes)) }
+        stats = Partitioning::TableStats.call(log.table_name, partitioned: log.partitioned?)
+        { rows: stats.rows, storage: Status.bytes(stats.bytes) }
       end
     end
   end

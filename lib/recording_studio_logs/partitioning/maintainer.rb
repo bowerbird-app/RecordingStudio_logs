@@ -52,16 +52,7 @@ module RecordingStudioLogs
       end
 
       def window
-        now = Time.now.utc.beginning_of_month
-        start = now.prev_month
-        finish = now.advance(months: RecordingStudioLogs.configuration.months_ahead)
-        months = []
-        cursor = start
-        while cursor <= finish
-          months << cursor
-          cursor = cursor.next_month
-        end
-        months
+        Window.months
       end
 
       def create_month(log, month)

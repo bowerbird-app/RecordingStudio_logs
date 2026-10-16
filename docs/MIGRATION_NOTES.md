@@ -13,7 +13,7 @@ That creates `recording_studio_logs_aggregation_runs` and `recording_studio_logs
 
 ## Existing production tables
 
-Do not auto-repartition a table that is already in production. PostgreSQL requires the partition key in the primary key and in every unique index, and foreign keys have to be recreated. The producing gem ships a manual cutover: create the new partitioned table, copy the rows, and switch writes. New partitioned tables use a primary key of `(id, occurred_at)` with the same UUID `id`.
+Do not auto-repartition a table that is already in production. PostgreSQL requires the partition key in the primary key and in every unique index, and foreign keys have to be recreated. Use `Schema.inspect_table` and `Schema.partition_compatibility`, then follow [Copy and switch a live log table](cutover.md). New partitioned tables use a primary key of `(id, occurred_at)` with the same UUID `id`.
 
 ## Arrival time
 

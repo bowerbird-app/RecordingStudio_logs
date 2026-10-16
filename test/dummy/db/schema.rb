@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_15_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -18,6 +18,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_000002) do
   create_table "folders", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name"
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "legacy_download_logs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "occurred_at", null: false
+    t.uuid "recording_id"
+    t.string "ip_address"
+    t.string "user_agent"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
 
@@ -222,6 +231,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_000002) do
     t.datetime "updated_at", null: false
   end
 
+  add_foreign_key "legacy_download_logs", "recording_studio_recordings", column: "recording_id"
   add_foreign_key "recording_studio_access_invitations", "recording_studio_recordings", column: "recording_id"
   add_foreign_key "recording_studio_events", "recording_studio_recordings", column: "recording_id"
   add_foreign_key "recording_studio_recordings", "recording_studio_recordings", column: "parent_recording_id"

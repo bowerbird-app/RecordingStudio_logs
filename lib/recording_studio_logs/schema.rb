@@ -26,6 +26,24 @@ module RecordingStudioLogs
       )
     end
 
+    def root_and_time_index(table_name, root_column:, timestamp_column:, name: nil,
+                            connection: ActiveRecord::Base.connection)
+      columns = [root_column, timestamp_column]
+      connection.add_index(table_name, columns, name: name || index_name(table_name, columns))
+    end
+
+    def inspect_table(...)
+      Inspection.inspect_table(...)
+    end
+
+    def partition_compatibility(...)
+      Inspection.partition_compatibility(...)
+    end
+
+    def index_name(table_name, columns)
+      "index_#{table_name}_on_#{columns.join('_')}"[0, 63]
+    end
+
     def install_runs!(connection = ActiveRecord::Base.connection)
       install_aggregation_runs!(connection)
       install_maintenance_runs!(connection)

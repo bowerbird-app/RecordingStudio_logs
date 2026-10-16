@@ -7,14 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- Retention keeps a month when a row arrives after the last success, when a consumer is registered before cleanup, when a consumer's model is not loaded, or when the log has no aggregations. `arrived_at` is the arrival watermark on partitioned logs. The drop blocks inserts, then reads the newest row again before the partition is removed.
-- Non-partitioned cleanup deletes a UTC day only when a success covers the rows still on that day before the cutoff.
-- `delete_for_root` runs in one transaction under the aggregation locks. Unscoped summaries are rebuilt, so a deleted owner's counts do not remain. A dormant consumer blocks the delete.
-- Metrics timeseries over a daily summary read the stored measurement and leave days with no rolled-up data empty.
-- Registering a log or an aggregation name for a second owner is rejected. The same owner can replace it. Admin cleanup status matches the exact table or partition name, from one dry-run per request.
-- Summary metrics are scoped to the root recording id. A bad timezone, a bad start, or `group_by` is a metrics input error.
-- Boot still does not query the database. `finalize!` with metrics loaded tolerates a missing database.
+## [0.4.0] - 2026-10-16
+
+### Added
+- Semantics, cutover, and adoption guides. Count and sum are the only timeseries Metrics publishes. Cancelling a subscription never deletes logs. The host calls `delete_for_root`.
+- `Schema.root_and_time_index`, `Schema.inspect_table`, `Schema.partition_compatibility`, and `Cutover` copy, validate, root-column, and backfill helpers.
+- `RecordingStudioLogs.missing_partitions` reports months in the maintenance window that are not attached. Admin health uses that list.
+- Admin log health shows table name, approximate rows, storage, and maintenance status. The detail screen shows configuration only.
+- Dummy `legacy_download_logs` is an unpartitioned Downloadable-shaped table. Dummy tests copy it onto a partitioned table, backfill a root column, match counts, and roll back.
+
+### Upgrade notes
+- This release adds helpers and screens. Existing registrations do not need a data migration.
+- Call `Schema.root_and_time_index` from a producing gem's log migration when lookups are by root and time.
+- Read [Log semantics](docs/semantics.md) and [Copy and switch a live log table](docs/cutover.md) before partitioning a live table.
+- Admin is still unmounted in this dummy because of the Flatpack pin. Screen definitions are tested without a browser.
 
 ## [0.3.0] - 2026-10-15
 
@@ -147,7 +153,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/bowerbird-app/recording_studio_logs/releases/tag/v0.2.3
 [0.2.2]: https://github.com/bowerbird-app/recording_studio_logs/releases/tag/v0.2.2
