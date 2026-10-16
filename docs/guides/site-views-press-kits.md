@@ -13,8 +13,8 @@ Insert two kit views and one center view on the same UTC day, then rebuild twice
 ```ruby
 RecordingStudioLogs.aggregate_day!(Date.new(2026, 10, 14))
 RecordingStudioLogs.aggregate_day!(Date.new(2026, 10, 14))
-PressKitViewSummary.sum(:views)      # 2
-PressCenterViewSummary.sum(:views)   # 1
+PressKitViewSummary.sum(:views)
+PressCenterViewSummary.sum(:views)
 ```
 
 The second rebuild does not double the counts. Each summary table keeps only its filter.
