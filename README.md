@@ -113,9 +113,9 @@ The dummy app is a host, not a product. It registers a partitioned site-view log
 
 Dummy pins:
 
-- dummy GitHub tag `v4.6.0` for Recording Studio
+- dummy GitHub tag `v4.7.0` for Recording Studio
 - dummy GitHub tag `v0.18.0` for Accessible
-- dummy GitHub tag `v0.10.0` for Trashable
+- dummy GitHub tag `v0.11.0` for Trashable
 - dummy GitHub tag `v0.9.0` for Root Switchable
 - dummy GitHub tag `v0.1.196` for Flatpack
 
