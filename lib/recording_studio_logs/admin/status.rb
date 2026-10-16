@@ -48,11 +48,9 @@ module RecordingStudioLogs
       end
 
       def missing_month?(log)
-        return false unless log.partitioned?
-
-        name = Partitioning::Names.partition(log.table_name, Time.now.utc.beginning_of_month)
-        !Partitioning::Catalog.exists?(log.table_name, name)
+        Partitioning::Detector.missing_for(log).any?
       end
+
 
       def cleanup_waiting?(log, blocked)
         return false if log.indefinite?

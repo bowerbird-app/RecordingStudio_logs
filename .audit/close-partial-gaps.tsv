@@ -1,0 +1,4 @@
+ts	phase	decision	why	evidence	result
+2026-10-16T07:12:47Z	start	this run starts from main after the stopped agent that never pushed	restart with a new model, no branch to resume	agent restart of bc-cda68226-a67f-5cfc-a787-c637b6fd453a	open
+2026-10-16T07:12:47Z	frame	close PARTIAL audit gaps in RecordingStudio_logs only, bump to 0.4.0, one draft PR	v0.4.0 tag is free, dummy cannot mount admin on Flatpack 0.1.196	lib/recording_studio_logs/version.rb	open
+2026-10-16T07:12:47Z	helpers	schema inspect, compatibility, cutover copy, missing partitions, admin config columns	helpers so dummy and producing gems rerun the same cutover	lib/recording_studio_logs/cutover.rb	gem postgres tests green

@@ -399,10 +399,114 @@ class LogsPostgresTest < Minitest::Test
     RecordingStudioLogs::Partitioning::Catalog.drop(month, ActiveRecord::Base.connection)
     health = RecordingStudioLogs::Admin::Catalog.logs.find { |row| row.name == ViewLog.name }
     assert_equal "Missing month", health.status
+    assert_equal VIEW_TABLE, health.table_name
+    refute_nil health.storage
     assert_equal 1, RecordingStudioLogs::Admin::Catalog.attention_count
     assert RecordingStudioLogs::Admin::Catalog.partitions_for(ViewLog.name).any?
+    config = RecordingStudioLogs::Admin::Catalog.configuration_for(ViewLog.name)
+    assert_equal "Owning gem", config.first.setting
+    assert_includes config.map(&:id), "timestamp"
+    assert_includes config.map(&:value), "occurred_at"
     assert_empty RecordingStudioLogs::Admin::Catalog.runs_for("missing/aggregation")
   end
+
+  def test_missing_partitions_lists_the_dropped_month
+    RecordingStudioLogs.maintain_partitions!
+    month = RecordingStudioLogs::Partitioning::Names.partition(VIEW_TABLE, Time.now.utc.beginning_of_month)
+    RecordingStudioLogs::Partitioning::Catalog.drop(month, ActiveRecord::Base.connection)
+    missing = RecordingStudioLogs.missing_partitions
+
+    assert_includes missing.map(&:name), month
+    assert_equal "Missing month", RecordingStudioLogs::Admin::Status.log_status(
+      RecordingStudioLogs.registry.log_for(ViewLog), blocked: []
+    )
+  end
+
+  def test_root_and_time_index_and_inspect_on_a_partitioned_log
+    RecordingStudioLogs::Schema.root_and_time_index(
+      VIEW_TABLE, root_column: :root_recording_id, timestamp_column: :occurred_at
+    )
+    inspection = RecordingStudioLogs::Schema.inspect_table(VIEW_TABLE)
+    report = RecordingStudioLogs::Schema.partition_compatibility(VIEW_TABLE, timestamp_column: :occurred_at)
+    names = ActiveRecord::Base.connection.indexes(VIEW_TABLE).map(&:name)
+
+    assert inspection.partitioned
+    assert_includes inspection.partition_key, "occurred_at"
+    assert_includes inspection.primary_key, "occurred_at"
+    assert report.compatible
+    assert_includes names, "index_#{VIEW_TABLE}_on_root_recording_id_occurred_at"
+  end
+
+  def test_cutover_copy_validates_and_can_roll_back
+    source = "rs_logs_spec_legacy_downloads"
+    dest = "rs_logs_spec_legacy_downloads_part"
+    recordings = "rs_logs_spec_recordings"
+    connection = ActiveRecord::Base.connection
+    connection.create_table recordings, id: :uuid do |table|
+      table.uuid :root_recording_id
+    end
+    connection.create_table source, id: :uuid do |table|
+      table.datetime :occurred_at, null: false
+      table.uuid :recording_id
+      table.string :ip_address
+      table.string :user_agent
+      table.timestamps
+    end
+    connection.add_foreign_key source, recordings, column: :recording_id
+    recording_id = connection.select_value(
+      "INSERT INTO #{recordings} (id, root_recording_id) VALUES (gen_random_uuid(), gen_random_uuid()) RETURNING id"
+    )
+    root_id = connection.select_value("SELECT root_recording_id FROM #{recordings} WHERE id = #{connection.quote(recording_id)}")
+    2.times do
+      connection.execute(<<~SQL.squish)
+        INSERT INTO #{source} (id, occurred_at, recording_id, ip_address, user_agent, created_at, updated_at)
+        VALUES (gen_random_uuid(), #{connection.quote(Time.utc(2026, 10, 14, 12))}, #{connection.quote(recording_id)},
+                '127.0.0.1', 'spec', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      SQL
+    end
+    before = connection.select_value("SELECT COUNT(*) FROM #{source}").to_i
+    report = RecordingStudioLogs::Schema.partition_compatibility(source, timestamp_column: :occurred_at)
+    RecordingStudioLogs::Schema.partitioned_log(dest, timestamp_column: :occurred_at, connection: connection) do |table|
+      table.uuid :root_recording_id
+      table.uuid :recording_id
+      table.string :ip_address
+      table.string :user_agent
+      table.timestamps
+    end
+    RecordingStudioLogs::Schema.root_and_time_index(
+      dest, root_column: :root_recording_id, timestamp_column: :occurred_at, connection: connection
+    )
+    month = Time.utc(2026, 10, 1)
+    RecordingStudioLogs::Partitioning::Catalog.create(
+      dest,
+      RecordingStudioLogs::Partitioning::Names.partition(dest, month),
+      month,
+      month.next_month
+    )
+    RecordingStudioLogs::Cutover.add_root_column(source)
+    RecordingStudioLogs::Cutover.backfill_root(source, recordings_table: recordings)
+    columns = %i[id occurred_at recording_id ip_address user_agent root_recording_id created_at updated_at]
+    first = RecordingStudioLogs::Cutover.copy(from: source, to: dest, columns: columns)
+    second = RecordingStudioLogs::Cutover.copy(from: source, to: dest, columns: columns)
+    check = RecordingStudioLogs::Cutover.validate(from: source, to: dest)
+    dest_roots = connection.select_value("SELECT COUNT(*) FROM #{dest} WHERE root_recording_id = #{connection.quote(root_id)}").to_i
+
+    refute report.compatible
+    assert_includes report.problems.join, "primary key"
+    assert_equal before, 2
+    assert_equal 2, first.inserted
+    assert_equal 0, second.inserted
+    assert check.matched?
+    assert_equal 2, dest_roots
+
+    connection.drop_table(dest, if_exists: true, force: :cascade)
+    assert_equal 2, connection.select_value("SELECT COUNT(*) FROM #{source}").to_i
+  ensure
+    %w[rs_logs_spec_legacy_downloads_part rs_logs_spec_legacy_downloads rs_logs_spec_recordings].each do |name|
+      ActiveRecord::Base.connection.drop_table(name, if_exists: true, force: :cascade)
+    end
+  end
+
 
   def test_metrics_sums_seven_views_on_that_day_and_leaves_a_gap_empty
     require "recording_studio_metrics"

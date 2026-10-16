@@ -16,11 +16,18 @@ require "recording_studio_logs/aggregation_definition"
 require "recording_studio_logs/registry"
 require "recording_studio_logs/lock"
 require "recording_studio_logs/schema"
+require "recording_studio_logs/schema/inspection"
+require "recording_studio_logs/cutover"
 require "recording_studio_logs/aggregation_run"
+
 require "recording_studio_logs/maintenance_run"
 require "recording_studio_logs/partitioning/names"
 require "recording_studio_logs/partitioning/catalog"
+require "recording_studio_logs/partitioning/window"
+require "recording_studio_logs/partitioning/detector"
+require "recording_studio_logs/partitioning/table_stats"
 require "recording_studio_logs/partitioning/maintainer"
+
 require "recording_studio_logs/retention/raw_rows"
 require "recording_studio_logs/retention/cleaner"
 require "recording_studio_logs/retention/owner_deletion"
@@ -75,9 +82,14 @@ module RecordingStudioLogs
       registry.reset!
     end
 
+    def missing_partitions(...)
+      Partitioning::Detector.missing(...)
+    end
+
     def maintain_partitions!
       Partitioning::Maintainer.call
     end
+
 
     def ensure_partition!(model, time)
       Partitioning::Maintainer.ensure!(model, time)

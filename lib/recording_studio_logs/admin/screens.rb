@@ -38,10 +38,13 @@ module RecordingStudioLogs
       table do
         column :name, sortable: false
         column :owner, title: "From", sortable: false
+        column :table_name, title: "Table", sortable: false
+        column :rows, title: "Approx. rows", sortable: false
+        column :storage, sortable: false
+        column :status, sortable: false
         column :retention, title: "Keeps", sortable: false
         column :partitioning, title: "Months", sortable: false
         column :aggregations, title: "Summaries", sortable: false
-        column :status, sortable: false
         action :open, text: "Open", url: lambda { |row, context|
           "#{context.admin_screen_path('log_detail')}?log=#{row.key}"
         }
@@ -51,17 +54,15 @@ module RecordingStudioLogs
     class LogDetailScreen < RecordingStudioAdmin::Screen
       key "log_detail"
       title "One log"
-      subtitle "Months, size, and whether cleanup can run"
-      query { |context| Catalog.partitions_for(context.params[:log] || context.params["log"]) }
+      subtitle "What this log is wired to"
+      query { |context| Catalog.configuration_for(context.params[:log] || context.params["log"]) }
 
       table do
-        column :name, sortable: false
-        column :range, sortable: false
-        column :rows, title: "Estimated rows", sortable: false
-        column :storage, sortable: false
-        column :expiration, sortable: false
+        column :setting, sortable: false
+        column :value, sortable: false
       end
     end
+
 
     class SummariesScreen < RecordingStudioAdmin::Screen
       key "summaries"
