@@ -63,7 +63,6 @@ module RecordingStudioLogs
       end
     end
 
-
     class SummariesScreen < RecordingStudioAdmin::Screen
       key "summaries"
       title "Summaries"

@@ -51,7 +51,6 @@ module RecordingStudioLogs
         Partitioning::Detector.missing_for(log).any?
       end
 
-
       def cleanup_waiting?(log, blocked)
         return false if log.indefinite?
 

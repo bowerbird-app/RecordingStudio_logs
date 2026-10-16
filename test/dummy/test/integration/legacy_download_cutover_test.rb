@@ -12,26 +12,17 @@ class LegacyDownloadCutoverTest < ActiveSupport::TestCase
   test "copy and switch matches counts then rollback restores the source" do
     cleanup_cutover_tables
     LegacyDownloadLog.delete_all
-    workspace = Workspace.create!(name: "Cutover Workspace")
-    user = User.find_or_create_by!(email: "admin@admin.com") do |record|
-      record.password = "Password"
-      record.password_confirmation = "Password"
-    end
-    Current.actor = user
-    root = RecordingStudio.root_recording_for(workspace)
-    page = Page.create!(title: "Cutover Page")
-    page_recording = RecordingStudio.record!(
-      action: "created",
-      recordable: page,
-      root_recording: root,
-      parent_recording: root
-    ).recording
+    connection = ActiveRecord::Base.connection
+    recording_id = insert_recording(connection)
+    root_id = connection.select_value(<<~SQL.squish)
+      SELECT root_recording_id FROM recording_studio_recordings WHERE id = #{connection.quote(recording_id)}
+    SQL
 
     day = Date.new(2026, 10, 14)
     3.times do
       LegacyDownloadLog.create!(
         occurred_at: Time.utc(2026, 10, 14, 15),
-        recording_id: page_recording.id,
+        recording_id: recording_id,
         ip_address: "203.0.113.10",
         user_agent: "spec"
       )
@@ -42,7 +33,6 @@ class LegacyDownloadCutoverTest < ActiveSupport::TestCase
     refute report.compatible
     assert_equal 3, before
 
-    connection = ActiveRecord::Base.connection
     RecordingStudioLogs::Schema.partitioned_log(DEST, timestamp_column: :occurred_at, connection: connection) do |table|
       table.uuid :root_recording_id
       table.uuid :recording_id
@@ -66,40 +56,19 @@ class LegacyDownloadCutoverTest < ActiveSupport::TestCase
     assert check.matched?
     assert_equal 3, connection.select_value(<<~SQL.squish).to_i
       SELECT COUNT(*) FROM #{connection.quote_table_name(DEST)}
-      WHERE root_recording_id = #{connection.quote(root.id)}
+      WHERE root_recording_id = #{connection.quote(root_id)}
     SQL
 
     create_summary(connection)
-    unless defined?(LegacyPartitionedDownloadLog)
-      Object.const_set(:LegacyPartitionedDownloadLog, Class.new(ApplicationRecord) do
-        self.table_name = DEST
-        self.primary_key = %i[id occurred_at]
-      end)
-    end
-    unless defined?(LegacyDownloadCount)
-      Object.const_set(:LegacyDownloadCount, Class.new(ApplicationRecord) { self.table_name = SUMMARY })
-    end
-    dest_model = LegacyPartitionedDownloadLog
-    summary_model = LegacyDownloadCount
-    RecordingStudioLogs.register(
-      model: dest_model, timestamp_column: :occurred_at, root_column: :root_recording_id,
-      owner: "Downloads", aggregatable: {
-        root_recording_id: { filter: [:eq], group: true },
-        recording_id: { filter: [:eq], group: true }
-      }
-    )
-    RecordingStudioLogs.aggregate(
-      source: dest_model, name: "downloadable/legacy_cutover", summary_model: summary_model,
-      group_by: %i[root_recording_id recording_id], measurements: { views: :count }, owner: "Downloads"
-    )
+    register_cutover_models
     RecordingStudioLogs.aggregate_day!(day)
 
-    assert_equal before, summary_model.sum(:views)
+    assert_equal before, LegacyDownloadCount.sum(:views)
 
     connection.drop_table(DEST, if_exists: true, force: :cascade)
     assert_equal before, LegacyDownloadLog.count
   ensure
-    Current.actor = nil
+    LegacyDownloadLog.delete_all
     connection = ActiveRecord::Base.connection
     connection.drop_table(SUMMARY, if_exists: true)
     connection.drop_table(DEST, if_exists: true, force: :cascade)
@@ -109,6 +78,42 @@ class LegacyDownloadCutoverTest < ActiveSupport::TestCase
   end
 
   private
+
+  def insert_recording(connection)
+    id = SecureRandom.uuid
+    now = connection.quote(Time.now.utc)
+    quoted = connection.quote(id)
+    connection.execute(<<~SQL.squish)
+      INSERT INTO recording_studio_recordings
+        (id, recordable_id, recordable_type, root_recording_id, created_at, updated_at)
+      VALUES (#{quoted}, #{quoted}, 'LegacyDownloadLog', #{quoted}, #{now}, #{now})
+    SQL
+    id
+  end
+
+  def register_cutover_models
+    unless defined?(LegacyPartitionedDownloadLog)
+      Object.const_set(:LegacyPartitionedDownloadLog, Class.new(ApplicationRecord) do
+        self.table_name = DEST
+        self.primary_key = %i[id occurred_at]
+      end)
+    end
+    unless defined?(LegacyDownloadCount)
+      Object.const_set(:LegacyDownloadCount, Class.new(ApplicationRecord) { self.table_name = SUMMARY })
+    end
+    RecordingStudioLogs.register(
+      model: LegacyPartitionedDownloadLog, timestamp_column: :occurred_at, root_column: :root_recording_id,
+      owner: "Downloads", aggregatable: {
+        root_recording_id: { filter: [:eq], group: true },
+        recording_id: { filter: [:eq], group: true }
+      }
+    )
+    RecordingStudioLogs.aggregate(
+      source: LegacyPartitionedDownloadLog, name: "downloadable/legacy_cutover",
+      summary_model: LegacyDownloadCount,
+      group_by: %i[root_recording_id recording_id], measurements: { views: :count }, owner: "Downloads"
+    )
+  end
 
   def cleanup_cutover_tables
     connection = ActiveRecord::Base.connection

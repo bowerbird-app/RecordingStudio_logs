@@ -65,7 +65,7 @@ class AdminScreensTest < Minitest::Test
 
   def test_authorization_defers_to_accessible_view
     require "recording_studio_admin"
-    skip "RecordingStudioAccessible is not loaded in this bundle" unless defined?(RecordingStudioAccessible)
+    require "recording_studio_accessible"
 
     actor = Object.new
     recording = Object.new

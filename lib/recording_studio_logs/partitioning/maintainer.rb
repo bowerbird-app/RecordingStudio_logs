@@ -55,7 +55,6 @@ module RecordingStudioLogs
         Window.months
       end
 
-
       def create_month(log, month)
         name = Names.partition(log.table_name, month)
         return if Catalog.exists?(log.table_name, name, connection)

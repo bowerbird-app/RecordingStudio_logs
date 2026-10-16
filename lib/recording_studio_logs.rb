@@ -90,7 +90,6 @@ module RecordingStudioLogs
       Partitioning::Maintainer.call
     end
 
-
     def ensure_partition!(model, time)
       Partitioning::Maintainer.ensure!(model, time)
     end

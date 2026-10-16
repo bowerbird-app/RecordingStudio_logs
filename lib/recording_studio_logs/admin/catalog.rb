@@ -67,7 +67,6 @@ module RecordingStudioLogs
         ]
       end
 
-
       def aggregations
         RecordingStudioLogs.aggregations.map { |definition| aggregation_row(definition) }
       end
@@ -138,7 +137,6 @@ module RecordingStudioLogs
         stats = Partitioning::TableStats.call(log.table_name, partitioned: log.partitioned?)
         { rows: stats.rows, storage: Status.bytes(stats.bytes) }
       end
-
     end
   end
 end

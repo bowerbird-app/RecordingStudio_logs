@@ -15,16 +15,16 @@ module RecordingStudioLogs
 
       def inspect_table(table_name, connection: ActiveRecord::Base.connection)
         name = table_name.to_s
-        TableInspection.new(
-          table_name: name,
-          partitioned: partitioned?(name, connection),
-          partition_key: partition_key(name, connection),
-          columns: connection.columns(name).map(&:name),
-          primary_key: Array(connection.primary_keys(name)),
-          unique_indexes: unique_indexes(name, connection),
-          foreign_keys: outbound_keys(name, connection),
-          inbound_foreign_keys: inbound_keys(name, connection)
-        )
+        TableInspection.new(**inspection_fields(name, connection))
+      end
+
+      def inspection_fields(name, connection)
+        {
+          table_name: name, partitioned: partitioned?(name, connection),
+          partition_key: partition_key(name, connection), columns: connection.columns(name).map(&:name),
+          primary_key: Array(connection.primary_keys(name)), unique_indexes: unique_indexes(name, connection),
+          foreign_keys: outbound_keys(name, connection), inbound_foreign_keys: inbound_keys(name, connection)
+        }
       end
 
       def partition_compatibility(table_name, timestamp_column:, connection: ActiveRecord::Base.connection)
@@ -48,19 +48,21 @@ module RecordingStudioLogs
         SQL
       end
 
+      PARTITION_KEY_SQL = <<~SQL.squish.freeze
+        SELECT attribute.attname
+        FROM pg_partitioned_table partitioned
+        JOIN pg_class klass ON klass.oid = partitioned.partrelid
+        JOIN pg_namespace namespace ON namespace.oid = klass.relnamespace
+        JOIN pg_attribute attribute
+          ON attribute.attrelid = klass.oid
+         AND attribute.attnum = ANY (partitioned.partattrs)
+        WHERE namespace.nspname = current_schema()
+          AND klass.relname = TABLE_NAME
+        ORDER BY attribute.attnum
+      SQL
+
       def partition_key(table_name, connection)
-        connection.select_values(<<~SQL.squish)
-          SELECT attribute.attname
-          FROM pg_partitioned_table partitioned
-          JOIN pg_class klass ON klass.oid = partitioned.partrelid
-          JOIN pg_namespace namespace ON namespace.oid = klass.relnamespace
-          JOIN pg_attribute attribute
-            ON attribute.attrelid = klass.oid
-           AND attribute.attnum = ANY (partitioned.partattrs)
-          WHERE namespace.nspname = current_schema()
-            AND klass.relname = #{connection.quote(table_name.to_s)}
-          ORDER BY attribute.attnum
-        SQL
+        connection.select_values(PARTITION_KEY_SQL.sub("TABLE_NAME", connection.quote(table_name.to_s)))
       end
 
       def unique_indexes(table_name, connection)
@@ -75,24 +77,29 @@ module RecordingStudioLogs
         end
       end
 
+      INBOUND_KEYS_SQL = <<~SQL.squish.freeze
+        SELECT constraint_row.conname AS name,
+               source.relname AS from_table,
+               source_attribute.attname AS column
+        FROM pg_constraint constraint_row
+        JOIN pg_class target ON target.oid = constraint_row.confrelid
+        JOIN pg_namespace namespace ON namespace.oid = target.relnamespace
+        JOIN pg_class source ON source.oid = constraint_row.conrelid
+        JOIN pg_attribute source_attribute
+          ON source_attribute.attrelid = source.oid
+         AND source_attribute.attnum = ANY (constraint_row.conkey)
+        WHERE constraint_row.contype = 'f'
+          AND namespace.nspname = current_schema()
+          AND target.relname = TABLE_NAME
+      SQL
+
       def inbound_keys(table_name, connection)
-        connection.select_all(<<~SQL.squish).map do |row|
-          SELECT constraint_row.conname AS name,
-                 source.relname AS from_table,
-                 source_attribute.attname AS column
-          FROM pg_constraint constraint_row
-          JOIN pg_class target ON target.oid = constraint_row.confrelid
-          JOIN pg_namespace namespace ON namespace.oid = target.relnamespace
-          JOIN pg_class source ON source.oid = constraint_row.conrelid
-          JOIN pg_attribute source_attribute
-            ON source_attribute.attrelid = source.oid
-           AND source_attribute.attnum = ANY (constraint_row.conkey)
-          WHERE constraint_row.contype = 'f'
-            AND namespace.nspname = current_schema()
-            AND target.relname = #{connection.quote(table_name.to_s)}
-        SQL
-          ForeignKey.new(name: row["name"], column: row["column"], to_table: row["from_table"])
-        end
+        sql = INBOUND_KEYS_SQL.sub("TABLE_NAME", connection.quote(table_name.to_s))
+        connection.select_all(sql).map { |row| inbound_key(row) }
+      end
+
+      def inbound_key(row)
+        ForeignKey.new(name: row["name"], column: row["column"], to_table: row["from_table"])
       end
 
       def primary_key_problems(inspection, key)

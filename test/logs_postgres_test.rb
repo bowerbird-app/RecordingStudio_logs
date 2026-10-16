@@ -456,7 +456,8 @@ class LogsPostgresTest < Minitest::Test
     recording_id = connection.select_value(
       "INSERT INTO #{recordings} (id, root_recording_id) VALUES (gen_random_uuid(), gen_random_uuid()) RETURNING id"
     )
-    root_id = connection.select_value("SELECT root_recording_id FROM #{recordings} WHERE id = #{connection.quote(recording_id)}")
+    quoted_id = connection.quote(recording_id)
+    root_id = connection.select_value("SELECT root_recording_id FROM #{recordings} WHERE id = #{quoted_id}")
     2.times do
       connection.execute(<<~SQL.squish)
         INSERT INTO #{source} (id, occurred_at, recording_id, ip_address, user_agent, created_at, updated_at)
@@ -489,7 +490,8 @@ class LogsPostgresTest < Minitest::Test
     first = RecordingStudioLogs::Cutover.copy(from: source, to: dest, columns: columns)
     second = RecordingStudioLogs::Cutover.copy(from: source, to: dest, columns: columns)
     check = RecordingStudioLogs::Cutover.validate(from: source, to: dest)
-    dest_roots = connection.select_value("SELECT COUNT(*) FROM #{dest} WHERE root_recording_id = #{connection.quote(root_id)}").to_i
+    quoted_root = connection.quote(root_id)
+    dest_roots = connection.select_value("SELECT COUNT(*) FROM #{dest} WHERE root_recording_id = #{quoted_root}").to_i
 
     refute report.compatible
     assert_includes report.problems.join, "primary key"
@@ -506,7 +508,6 @@ class LogsPostgresTest < Minitest::Test
       ActiveRecord::Base.connection.drop_table(name, if_exists: true, force: :cascade)
     end
   end
-
 
   def test_metrics_sums_seven_views_on_that_day_and_leaves_a_gap_empty
     require "recording_studio_metrics"
