@@ -67,7 +67,10 @@ class LegacyDownloadCutoverTest < ActiveSupport::TestCase
 
     connection.drop_table(DEST, if_exists: true, force: :cascade)
     assert_equal before, LegacyDownloadLog.count
+    forget_cutover_registration
+    RecordingStudioLogs.aggregate_day!(day)
   ensure
+    forget_cutover_registration
     LegacyDownloadLog.delete_all
     connection = ActiveRecord::Base.connection
     connection.drop_table(SUMMARY, if_exists: true)
@@ -113,6 +116,15 @@ class LegacyDownloadCutoverTest < ActiveSupport::TestCase
       summary_model: LegacyDownloadCount,
       group_by: %i[root_recording_id recording_id], measurements: { views: :count }, owner: "Downloads"
     )
+  end
+
+  def forget_cutover_registration
+    registry = RecordingStudioLogs.registry
+    mutex = registry.instance_variable_get(:@mutex)
+    mutex.synchronize do
+      registry.instance_variable_get(:@aggregations).delete("downloadable/legacy_cutover")
+      registry.instance_variable_get(:@logs).delete("LegacyPartitionedDownloadLog")
+    end
   end
 
   def cleanup_cutover_tables
