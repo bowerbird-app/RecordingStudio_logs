@@ -28,6 +28,7 @@ class LogsDemonstrationTest < ActiveSupport::TestCase
 
   test "logs timeseries reject group_by and other metrics keep it" do
     previous = RecordingStudioMetrics.configuration.min_group_size
+    table = "rs_dummy_api_requests"
     context = RecordingStudioMetrics::Context.new(
       scope: :root, system: true, workspace_id: SecureRandom.uuid, timezone: "UTC"
     )
@@ -36,13 +37,13 @@ class LogsDemonstrationTest < ActiveSupport::TestCase
     end
     assert_equal "group_by is not supported", error.message
 
-    table = "rs_dummy_api_requests"
     connection = ActiveRecord::Base.connection
     connection.create_table table, id: :uuid, force: true do |t|
       t.uuid :workspace_id, null: false
       t.string :route_name, null: false
     end
-    model = Class.new(ActiveRecord::Base) { self.table_name = table }
+    model = Class.new(ActiveRecord::Base)
+    model.table_name = table
     workspace_id = SecureRandom.uuid
     model.create!(workspace_id: workspace_id, route_name: "folders")
     resource = :"dummy_api_requests_#{SecureRandom.hex(4)}"
@@ -64,7 +65,7 @@ class LogsDemonstrationTest < ActiveSupport::TestCase
     assert_equal [{ key: "folders", value: 1 }], result.groups
   ensure
     RecordingStudioMetrics.configuration.min_group_size = previous if previous
-    ActiveRecord::Base.connection.drop_table(table, if_exists: true) if defined?(table)
+    ActiveRecord::Base.connection.drop_table(table, if_exists: true)
   end
 
   test "seven views stay on that utc day and a missing day stays empty" do

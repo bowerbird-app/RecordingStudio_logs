@@ -21,6 +21,7 @@ class DocsCoverageTest < Minitest::Test
 
     assert_includes readme, "Only count and sum are published"
     assert_includes readme, "Do not extend Metrics from this gem"
+    assert_includes readme, "Metrics registered by other gems keep the `group_by` dimensions they declared"
     assert_includes adoption, "Only `count` and `sum` become timeseries"
   end
 

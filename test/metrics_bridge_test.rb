@@ -36,8 +36,12 @@ class MetricsBridgeTest < Minitest::Test
 
   def test_bad_timezone_and_logs_group_by_are_metrics_input_errors
     RecordingStudioLogs.reset!
-    source = Class.new(ActiveRecord::Base) { self.table_name = "bridge_sources" }
-    summary = Class.new(ActiveRecord::Base) { self.table_name = "bridge_summaries" }
+    source = self.class.const_set(:BridgeSource, Class.new(ActiveRecord::Base) do
+      self.table_name = "bridge_sources"
+    end)
+    summary = self.class.const_set(:BridgeSummary, Class.new(ActiveRecord::Base) do
+      self.table_name = "bridge_summaries"
+    end)
     RecordingStudioLogs.register(
       model: source, timestamp_column: :occurred_at, root_column: :root_recording_id,
       aggregatable: { root_recording_id: { group: true } }
@@ -65,6 +69,9 @@ class MetricsBridgeTest < Minitest::Test
     end
   ensure
     RecordingStudioLogs.reset!
+    %w[BridgeSource BridgeSummary].each do |name|
+      self.class.send(:remove_const, name) if self.class.const_defined?(name, false)
+    end
   end
 
   private
