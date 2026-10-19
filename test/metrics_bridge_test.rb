@@ -34,7 +34,18 @@ class MetricsBridgeTest < Minitest::Test
     end
   end
 
-  def test_bad_timezone_and_group_by_are_metrics_input_errors
+  def test_bad_timezone_and_logs_group_by_are_metrics_input_errors
+    RecordingStudioLogs.reset!
+    source = Class.new(ActiveRecord::Base) { self.table_name = "bridge_sources" }
+    summary = Class.new(ActiveRecord::Base) { self.table_name = "bridge_summaries" }
+    RecordingStudioLogs.register(
+      model: source, timestamp_column: :occurred_at, root_column: :root_recording_id,
+      aggregatable: { root_recording_id: { group: true } }
+    )
+    RecordingStudioLogs.aggregate(
+      source: source, name: "host/bridge_views", summary_model: summary,
+      group_by: [:root_recording_id], measurements: { views: :count }
+    )
     RecordingStudioLogs.finalize!
     context = RecordingStudioMetrics::Context.new(
       scope: :root, system: true, workspace_id: "ws", timezone: "UTC"
@@ -44,11 +55,16 @@ class MetricsBridgeTest < Minitest::Test
       RecordingStudioMetrics::Context.new(scope: :root, system: true, workspace_id: "ws", timezone: "Not/AZone")
     end
     assert_raises(RecordingStudioMetrics::Errors::InvalidFilter) do
-      RecordingStudioMetrics.execute("logs.views", context: context, group_by: "ip_address")
+      RecordingStudioMetrics.execute("host_bridge_views.views", context: context, group_by: "ip_address")
     end
     assert_raises(RecordingStudioMetrics::Errors::InvalidFilter) do
-      RecordingStudioMetrics.execute("logs.views", context: context, group_by: "email")
+      RecordingStudioMetrics.execute("host_bridge_views.views", context: context, group_by: "email")
     end
+    assert_raises(RecordingStudioMetrics::Errors::UnknownMetric) do
+      RecordingStudioMetrics.execute("api_requests.server_errors_over_time", context: context, group_by: "route_name")
+    end
+  ensure
+    RecordingStudioLogs.reset!
   end
 
   private
