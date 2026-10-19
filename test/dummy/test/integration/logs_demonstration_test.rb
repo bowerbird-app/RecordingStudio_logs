@@ -26,6 +26,48 @@ class LogsDemonstrationTest < ActiveSupport::TestCase
     assert_includes names, "presskits_press_kit_views.views"
   end
 
+  test "logs timeseries reject group_by and other metrics keep it" do
+    previous = RecordingStudioMetrics.configuration.min_group_size
+    table = "rs_dummy_api_requests"
+    context = RecordingStudioMetrics::Context.new(
+      scope: :root, system: true, workspace_id: SecureRandom.uuid, timezone: "UTC"
+    )
+    error = assert_raises(RecordingStudioMetrics::Errors::InvalidFilter) do
+      RecordingStudioMetrics.execute("presskits_press_kit_views.views", context: context, group_by: "route_name")
+    end
+    assert_equal "group_by is not supported", error.message
+
+    connection = ActiveRecord::Base.connection
+    connection.create_table table, id: :uuid, force: true do |t|
+      t.uuid :workspace_id, null: false
+      t.string :route_name, null: false
+    end
+    model = Class.new(ActiveRecord::Base)
+    model.table_name = table
+    workspace_id = SecureRandom.uuid
+    model.create!(workspace_id: workspace_id, route_name: "folders")
+    resource = :"dummy_api_requests_#{SecureRandom.hex(4)}"
+    RecordingStudioMetrics.register(resource, model: model) do
+      count :total, group_by: [:route_name]
+    end
+    RecordingStudioMetrics.configuration.min_group_size = 1
+    result = RecordingStudioMetrics.execute(
+      "#{resource}.total",
+      context: RecordingStudioMetrics::Context.new(
+        scope: :root, system: true, workspace_id: workspace_id, timezone: "UTC"
+      ),
+      group_by: "route_name",
+      cache: false
+    )
+
+    assert_equal 1, result.value
+    assert_equal :route_name, result.group_by
+    assert_equal [{ key: "folders", value: 1 }], result.groups
+  ensure
+    RecordingStudioMetrics.configuration.min_group_size = previous if previous
+    ActiveRecord::Base.connection.drop_table(table, if_exists: true)
+  end
+
   test "seven views stay on that utc day and a missing day stays empty" do
     day = Date.new(2026, 10, 14)
     root_id = SecureRandom.uuid

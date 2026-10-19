@@ -559,6 +559,62 @@ class LogsPostgresTest < Minitest::Test
     assert_equal 7, point[:value].to_i
   end
 
+  def test_a_foreign_metric_still_groups_after_logs_installs
+    require "recording_studio_metrics"
+    previous = RecordingStudioMetrics.configuration.min_group_size
+    RecordingStudioLogs.finalize!
+    workspace_id = SecureRandom.uuid
+    table = "rs_logs_spec_api_requests"
+    connection = ActiveRecord::Base.connection
+    connection.create_table table, id: :uuid, force: true do |t|
+      t.uuid :workspace_id, null: false
+      t.string :route_name, null: false
+      t.string :request_method, null: false
+    end
+    model = named_model(:ApiRequestRow, table)
+    model.create!(workspace_id: workspace_id, route_name: "folders", request_method: "GET")
+    model.create!(workspace_id: workspace_id, route_name: "members", request_method: "POST")
+    resource = :"api_requests_#{SecureRandom.hex(4)}"
+    RecordingStudioMetrics.register(resource, model: model) do
+      count :total, group_by: %i[route_name request_method]
+    end
+    RecordingStudioMetrics.configuration.min_group_size = 1
+    context = RecordingStudioMetrics::Context.new(
+      scope: :root, system: true, workspace_id: workspace_id, timezone: "UTC"
+    )
+
+    result = RecordingStudioMetrics.execute(
+      "#{resource}.total", context: context, group_by: "route_name", cache: false
+    )
+    by_method = RecordingStudioMetrics.execute(
+      "#{resource}.total", context: context, group_by: "request_method", cache: false
+    )
+
+    assert_equal 2, result.value
+    assert_equal :route_name, result.group_by
+    assert_equal [{ key: "folders", value: 1 }, { key: "members", value: 1 }], result.groups
+    assert_equal :request_method, by_method.group_by
+  ensure
+    RecordingStudioMetrics.configuration.min_group_size = previous if previous
+    drop_extra(table, :ApiRequestRow)
+  end
+
+  def test_logs_metrics_still_reject_unsupported_group_by
+    require "recording_studio_metrics"
+    RecordingStudioLogs.finalize!
+    context = RecordingStudioMetrics::Context.new(
+      scope: :root, system: true, workspace_id: SecureRandom.uuid, timezone: "UTC",
+      timestamp: Time.utc(2026, 10, 16, 12)
+    )
+
+    error = assert_raises(RecordingStudioMetrics::Errors::InvalidFilter) do
+      RecordingStudioMetrics.execute(
+        "presskits_press_kit_views.views", context: context, group_by: "route_name"
+      )
+    end
+    assert_equal "group_by is not supported", error.message
+  end
+
   def test_a_bad_start_at_is_a_metrics_input_error
     require "recording_studio_metrics"
     RecordingStudioLogs.aggregate_day!(Date.new(2026, 10, 14))

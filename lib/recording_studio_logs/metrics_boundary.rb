@@ -32,10 +32,25 @@ module RecordingStudioLogs
 
     module GroupByError
       def call(identifier, context:, **params)
-        raise RecordingStudioMetrics::Errors::InvalidFilter, "group_by is not supported" if params.key?(:group_by)
+        if params.key?(:group_by) && MetricsBoundary.owns?(identifier)
+          raise RecordingStudioMetrics::Errors::InvalidFilter, "group_by is not supported"
+        end
 
         super
       end
+    end
+
+    def owns?(identifier)
+      resource = identifier.to_s.split(".", 2).first
+      return false if resource.blank?
+
+      aggregations = RecordingStudioLogs.aggregations
+      return true if aggregations.any? { |item| item.metrics_resource.to_s == resource }
+
+      definition = RecordingStudioMetrics.find(identifier)
+      return false unless definition
+
+      aggregations.any? { |item| item.summary_model == definition.model }
     end
 
     module SummaryScope

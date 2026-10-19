@@ -21,7 +21,7 @@ The second rebuild does not double the counts. Each summary table keeps only its
 
 ## Metrics
 
-When `RecordingStudioMetrics` is loaded, a rooted `count` or `sum` becomes a timeseries. The dummy registers `presskits_press_kit_views.views`. Average, minimum, and maximum are not published. Do not extend Metrics from this gem.
+When `RecordingStudioMetrics` is loaded, a rooted `count` or `sum` becomes a timeseries. The dummy registers `presskits_press_kit_views.views`. Average, minimum, and maximum are not published. Do not extend Metrics from this gem. These series reject `group_by`. Metrics another gem registered keep the dimensions they declared.
 
 ```ruby
 result = RecordingStudioMetrics.execute(

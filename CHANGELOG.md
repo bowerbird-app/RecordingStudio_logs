@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-19
+
+### Fixed
+- `MetricsBoundary.install!` still prepends the Metrics executor, but it only rejects `group_by` for metrics Logs owns or bridges. Other gems keep the `group_by` dimensions they registered. Logs timeseries still raise `RecordingStudioMetrics::Errors::InvalidFilter`.
+
+### Upgrade notes
+- Hosts that load Logs and then call `RecordingStudioMetrics.execute` with `group_by` on another gem's metric (for example `api_requests.server_errors_over_time`) get that grouping instead of `InvalidFilter`. Logs-published timeseries still reject `group_by`. No registration change is required.
+
 ## [0.4.0] - 2026-10-16
 
 ### Added
@@ -153,7 +161,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/bowerbird-app/recording_studio_logs/releases/tag/v0.2.3
