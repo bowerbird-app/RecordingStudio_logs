@@ -15,16 +15,8 @@ module RecordingStudioLogs
       module_function
 
       def logs
-        waiting = cleanup_blocked
+        waiting = blocked_names
         RecordingStudioLogs.logs.map { |log| log_row(log, waiting) }
-      end
-
-      def cleanup_blocked
-        state = ActiveSupport::IsolatedExecutionState
-        key = :recording_studio_logs_cleanup
-        return state[key] if state.key?(key)
-
-        state[key] = blocked_names
       end
 
       def blocked_names
@@ -34,11 +26,11 @@ module RecordingStudioLogs
       end
 
       def attention_count
-        logs.count { |row| row.status != "OK" }
+        logs.count { |row| row.status != Status::OK }
       end
 
       def stuck_count
-        aggregations.count { |row| row.status != "OK" }
+        aggregations.count { |row| row.status != Status::OK }
       end
 
       def partitions_for(key)

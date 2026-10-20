@@ -778,20 +778,17 @@ class LogsPostgresTest < Minitest::Test
     rows.each { |row| refute_nil row.storage }
   end
 
-  def test_log_health_reuses_one_cleanup_read
-    expired_month
-    ActiveSupport::IsolatedExecutionState.delete(:recording_studio_logs_cleanup)
-    RecordingStudioLogs::Admin::Catalog.logs
-    queries = []
-    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*args|
-      queries << args.last[:sql]
-    end
-    RecordingStudioLogs::Admin::Catalog.attention_count
+  def test_log_health_picks_up_cleanup_waiting_on_the_next_read
+    RecordingStudioLogs.maintain_partitions!
+    first = RecordingStudioLogs::Admin::Catalog.logs.find { |row| row.name == ViewLog.name }
+    assert_equal "OK", first.status
+    assert_equal 0, RecordingStudioLogs::Admin::Catalog.attention_count
 
-    assert_equal(0, queries.count { |sql| sql.include?("aggregation_runs") })
-  ensure
-    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
-    ActiveSupport::IsolatedExecutionState.delete(:recording_studio_logs_cleanup)
+    expired_month
+    second = RecordingStudioLogs::Admin::Catalog.logs.find { |row| row.name == ViewLog.name }
+
+    assert_equal "Cleanup waiting", second.status
+    assert_equal 1, RecordingStudioLogs::Admin::Catalog.attention_count
   end
 
   def test_jobs_rebuild_real_rows
