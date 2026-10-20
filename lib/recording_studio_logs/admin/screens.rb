@@ -75,7 +75,7 @@ module RecordingStudioLogs
       title "Summaries"
       subtitle "Each one reads the same raw log without copying it"
       query { Catalog.aggregations }
-      filter :status, options: Status::SUMMARY_FILTERS, apply: ->(rows, value, _context) {
+      filter :status, options: Status::SUMMARY_FILTERS, apply: lambda { |rows, value, _context|
         Status.matching(rows, value)
       }
 

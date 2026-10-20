@@ -73,13 +73,14 @@ module RecordingStudioLogs
 
       def matching(rows, value)
         return rows if value.blank?
-        return rows.select { |row| row.status != OK } if value == NEEDS_ATTENTION
+        return rows.reject { |row| row.status == OK } if value == NEEDS_ATTENTION
 
         rows.select { |row| row.status == value }
       end
 
       def needs_attention_path(context, screen_key)
-        "#{context.admin_screen_path(screen_key)}?#{ { status: NEEDS_ATTENTION }.to_query }"
+        query = { status: NEEDS_ATTENTION }.to_query
+        "#{context.admin_screen_path(screen_key)}?#{query}"
       end
 
       def missing_month?(log)
