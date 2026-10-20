@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-20
+
+### Added
+- Log health and Summaries take a Status filter. Needs a look and Summaries stuck open those screens on **Needs attention** (not OK), which matches the widget counts.
+- Status on Log health, Summaries, and One summary runs renders as a Flatpack badge: OK green, Failed and Missing table red, Missing month and Cleanup waiting amber, Waiting grey.
+
+### Fixed
+- One log and One summary are linked from the Logs section, so Admin enables those screens for an enabled logs root. Open on a row no longer 404s.
+- Log health no longer memoizes the cleanup dry-run in `IsolatedExecutionState` for the life of the process. A new expired month or finished summary shows on the next load.
+
+### Changed
+- The Logs section treats Log health as a normal link, not a primary button.
+
+### Upgrade notes
+- Reload Logs 0.5.0. No host change. Staff who already have the Logs section get the detail screens, Status filter, and live cleanup status.
+
 ## [0.4.2] - 2026-10-20
 
 ### Fixed
@@ -169,7 +185,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.3.0...v0.4.0

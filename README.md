@@ -107,7 +107,7 @@ Do not auto-repartition a table that is already in production. Inspect the table
 
 ## Admin
 
-Screens register only when `RecordingStudioAdmin` is loaded. They are read-only, granted through Accessible on an admin root, and they do not show raw log rows. The section key is `logs`. The screens are `log_health`, `log_detail`, `summaries`, and `summary_detail`. Log health shows table name, approximate rows, storage, and maintenance status. The detail screen shows configuration. See [Log admin screens](docs/guides/admin-screens.md).
+Screens register only when `RecordingStudioAdmin` is loaded. They are read-only, granted through Accessible on an admin root, and they do not show raw log rows. The section key is `logs`. The screens are `log_health`, `log_detail`, `summaries`, and `summary_detail`. Log health shows table name, approximate rows, storage, and maintenance status. A Status filter and Needs attention widget link keep the list in step with the count. The detail screen shows configuration. See [Log admin screens](docs/guides/admin-screens.md).
 
 ## Dummy app
 
