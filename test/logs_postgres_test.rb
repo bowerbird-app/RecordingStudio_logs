@@ -758,6 +758,26 @@ class LogsPostgresTest < Minitest::Test
     end
   end
 
+  def test_table_stats_size_query_runs_against_postgres
+    RecordingStudioLogs.maintain_partitions!
+
+    unpartitioned = RecordingStudioLogs::Partitioning::TableStats.call(KIT_TABLE, partitioned: false)
+    refute_nil unpartitioned.bytes
+    assert_operator unpartitioned.bytes, :>=, 0
+
+    partitioned = RecordingStudioLogs::Partitioning::TableStats.call(VIEW_TABLE, partitioned: true)
+    refute_nil partitioned.bytes
+    assert_operator partitioned.bytes, :>=, 0
+
+    parts = RecordingStudioLogs::Partitioning::Catalog.list(VIEW_TABLE)
+    refute_empty parts
+    parts.each { |part| assert_operator part.bytes, :>=, 0 }
+
+    rows = RecordingStudioLogs::Admin::Catalog.logs
+    refute_empty rows
+    rows.each { |row| refute_nil row.storage }
+  end
+
   def test_log_health_reuses_one_cleanup_read
     expired_month
     ActiveSupport::IsolatedExecutionState.delete(:recording_studio_logs_cleanup)

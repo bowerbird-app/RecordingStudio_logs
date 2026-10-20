@@ -8,7 +8,7 @@ The dummy app does not mount Admin. `recording_studio_admin` 2.3.2 needs Flatpac
 
 The Logs section has two widgets: logs that need a look, and stuck summaries.
 
-**Log health** lists each registered log. Columns are name, owning gem, table name, approximate rows, storage, maintenance status, retention, month layout, and summary count. Approximate rows and storage come from PostgreSQL `reltuples` and `pg_total_relation_size`. They are estimates. Maintenance status is OK, Waiting, Missing month, or Cleanup waiting. Missing month uses `RecordingStudioLogs.missing_partitions`, which compares attached partitions to the maintenance window.
+**Log health** lists each registered log. Columns are name, owning gem, table name, approximate rows, storage, maintenance status, retention, month layout, and summary count. Approximate rows and storage come from PostgreSQL `pg_class.reltuples` and `pg_total_relation_size(pg_class.oid)` (or `child.oid` on partitions). They are estimates. Maintenance status is OK, Waiting, Missing month, or Cleanup waiting. Missing month uses `RecordingStudioLogs.missing_partitions`, which compares attached partitions to the maintenance window.
 
 **One log** shows configuration: owning gem, model, table, timestamp column, root column, retention, and partition interval.
 

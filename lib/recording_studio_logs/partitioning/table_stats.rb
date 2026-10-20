@@ -18,7 +18,7 @@ module RecordingStudioLogs
 
       def table_stat(table_name, connection)
         row = connection.select_one(<<~SQL.squish)
-          SELECT reltuples AS estimated_rows, pg_total_relation_size(oid) AS bytes
+          SELECT pg_class.reltuples AS estimated_rows, pg_total_relation_size(pg_class.oid) AS bytes
           FROM pg_class
           JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
           WHERE pg_namespace.nspname = current_schema()

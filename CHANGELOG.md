@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-20
+
+### Fixed
+- Admin log health size queries qualify `pg_class.oid` when joining `pg_namespace`, so PostgreSQL no longer raises `PG::AmbiguousColumn`. Partition catalog size queries already used `child.oid`.
+
+### Upgrade notes
+- No host change. Reload Logs 0.4.2 so Admin log health can read table size.
+
 ## [0.4.1] - 2026-10-19
 
 ### Fixed
@@ -161,7 +169,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.2.3...v0.3.0
