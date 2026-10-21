@@ -36,6 +36,7 @@ require "recording_studio_logs/partitioning/maintainer"
 
 require "recording_studio_logs/retention/window_rows"
 require "recording_studio_logs/retention/raw_rows"
+require "recording_studio_logs/retention/cleaner_context"
 require "recording_studio_logs/retention/window_cleaner"
 require "recording_studio_logs/retention/day_cleaner"
 require "recording_studio_logs/retention/cleaner"

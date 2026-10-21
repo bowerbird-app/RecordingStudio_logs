@@ -72,8 +72,6 @@ module RecordingStudioLogs
     end
 
     def summary_table_ready?
-      return false unless summary_model.respond_to?(:table_exists?)
-
       summary_model.table_exists?
     rescue ActiveRecord::NoDatabaseError, ActiveRecord::ConnectionNotEstablished
       false

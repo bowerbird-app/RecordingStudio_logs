@@ -3,8 +3,8 @@
 module RecordingStudioLogs
   module Retention
     class DayCleaner
-      def initialize(cleaner)
-        @cleaner = cleaner
+      def initialize(context)
+        @context = context
       end
 
       def delete_rows(log)
@@ -17,10 +17,10 @@ module RecordingStudioLogs
 
       private
 
-      attr_reader :cleaner
+      attr_reader :context
 
       delegate :connection, :now, :dry_run, :dropped, :blocked, :cutoff, :covering_closed?,
-               :lock_names_for_range, to: :cleaner
+               :lock_names_for_range, to: :context
 
       def release_rows(log, covered)
         return dropped << log.table_name if dry_run

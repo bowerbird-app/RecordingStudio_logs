@@ -10,39 +10,20 @@ module RecordingStudioLogs
       end
 
       def initialize(dry_run, connection, now)
-        @dry_run = dry_run
-        @connection = connection
-        @now = now
-        @dropped = []
-        @blocked = []
+        @context = CleanerContext.new(dry_run, connection, now)
       end
 
       def call
         RecordingStudioLogs.registry.logs.select(&:loaded?).each { |log| clean(log) }
-        CleanupReport.new(dropped: dropped, blocked: blocked, dry_run: dry_run)
-      end
-
-      attr_reader :dry_run, :connection, :now, :dropped, :blocked
-
-      def covering_closed?(log, lower, upper)
-        definitions = RecordingStudioLogs.registry.aggregations_for(log)
-        return false if definitions.empty?
-
-        definitions.all? do |definition|
-          starts = definition.period.starts_overlapping(lower, upper)
-          starts.any? && starts.all? { |start| definition.period.closed?(start, now) }
-        end
-      end
-
-      def lock_names_for_range(log, lower, upper)
-        Lock.names_for_range(RecordingStudioLogs.registry.aggregations_for(log), lower, upper)
-      end
-
-      def cutoff(log)
-        now - log.retention
+        CleanupReport.new(dropped: context.dropped, blocked: context.blocked, dry_run: context.dry_run)
       end
 
       private
+
+      attr_reader :context
+
+      delegate :dry_run, :connection, :now, :dropped, :blocked, :cutoff, :covering_closed?,
+               :lock_names_for_range, to: :context
 
       def clean(log)
         return if log.indefinite?
@@ -66,9 +47,9 @@ module RecordingStudioLogs
       end
 
       def delete_rows(log)
-        return DayCleaner.new(self).delete_rows(log) if calendar_only?(log)
+        return DayCleaner.new(context).delete_rows(log) if calendar_only?(log)
 
-        WindowCleaner.new(self).delete_rows(log)
+        WindowCleaner.new(context).delete_rows(log)
       end
 
       def calendar_only?(log)

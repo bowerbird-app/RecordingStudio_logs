@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Install and upgrade migrations store aggregation runs on `period_start` instead of `day`.
 
 ### Changed
+- Daily cleanup methods moved from `retention/cleaner.rb` into `retention/day_cleaner.rb`. Partition release now goes through `range_ready?`/`range_fresh?`. Daily behaviour is unchanged.
 - `aggregate_day!` now skips non-calendar-day aggregations.
 - MetricsBridge only publishes calendar-day aggregations.
 - Admin RunRow day is now `period_start`.

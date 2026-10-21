@@ -3,12 +3,8 @@
 module RecordingStudioLogs
   module Retention
     class WindowCleaner
-      def initialize(cleaner)
-        @connection = cleaner.connection
-        @now = cleaner.now
-        @dry_run = cleaner.dry_run
-        @dropped = cleaner.dropped
-        @blocked = cleaner.blocked
+      def initialize(context)
+        @context = context
       end
 
       def delete_rows(log)
@@ -22,7 +18,9 @@ module RecordingStudioLogs
 
       private
 
-      attr_reader :connection, :now, :dry_run, :dropped, :blocked
+      attr_reader :context
+
+      delegate :connection, :now, :dry_run, :dropped, :blocked, :cutoff, to: :context
 
       def lock_window_delete(log, windows)
         Lock.with(connection, *lock_names(log, windows)) do
@@ -88,10 +86,6 @@ module RecordingStudioLogs
       def lock_names(log, windows)
         aggregations = RecordingStudioLogs.registry.aggregations_for(log)
         windows.flat_map { |lower, upper| Lock.names_for_range(aggregations, lower, upper) }
-      end
-
-      def cutoff(log)
-        now - log.retention
       end
     end
   end
