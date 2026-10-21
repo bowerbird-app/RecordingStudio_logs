@@ -59,8 +59,8 @@ module RecordingStudioLogs
         WindowRows.delete_windows(connection, log, cutoff, windows)
       end
 
-      def max_in_window(connection, log, column, cutoff, lower, upper)
-        WindowRows.max(WindowScope.new(connection, log, column, cutoff, lower, upper))
+      def max_in_window(scope)
+        WindowRows.max(scope)
       end
 
       def newest_for_days(connection, log, cutoff, days)

@@ -8,13 +8,20 @@ module RecordingStudioLogs
       module_function
 
       def max(scope)
+        RawRows.coerce_time(scope.connection.select_value(max_sql(scope)))
+      end
+
+      def max_sql(scope)
         time = scope.connection.quote_column_name(scope.log.timestamp_column)
         quoted = scope.connection.quote_column_name(scope.column)
-        sql = "SELECT MAX(#{quoted}) FROM #{RawRows.quoted_table(scope.connection, scope.log)} " \
-              "WHERE #{time} < #{scope.connection.quote(scope.cutoff)} " \
-              "AND #{time} >= #{scope.connection.quote(scope.lower)} " \
-              "AND #{time} < #{scope.connection.quote(scope.upper)}"
-        RawRows.coerce_time(scope.connection.select_value(sql))
+        table = RawRows.quoted_table(scope.connection, scope.log)
+        "SELECT MAX(#{quoted}) FROM #{table} WHERE #{window_bounds(scope, time)}"
+      end
+
+      def window_bounds(scope, time)
+        "#{time} < #{scope.connection.quote(scope.cutoff)} " \
+          "AND #{time} >= #{scope.connection.quote(scope.lower)} " \
+          "AND #{time} < #{scope.connection.quote(scope.upper)}"
       end
 
       def newest_before(connection, log, cutoff, lower, upper)
