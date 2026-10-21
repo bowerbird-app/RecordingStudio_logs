@@ -109,6 +109,36 @@ class LogsPeriodPostgresTest < Minitest::Test
     assert_equal 2, DaySummary.sum(:views)
   end
 
+  def test_sync_create_inside_an_uncommitted_transaction_does_not_write_the_summary
+    RecordingStudioLogs.aggregate(
+      source: ViewLog, name: "host/sync_views", summary_model: DaySummary,
+      group_by: [:root_recording_id], measurements: { views: :count },
+      count: :sync, owner: "Host"
+    )
+    ActiveRecord::Base.transaction do
+      insert_view(Time.utc(2026, 10, 14, 12))
+      assert_equal 0, DaySummary.count
+      raise ActiveRecord::Rollback
+    end
+
+    assert_equal 0, DaySummary.count
+  end
+
+  def test_aggregate_period_twice_on_the_same_rows_keeps_the_same_sum
+    register_daily
+    root = SecureRandom.uuid
+    insert_view(Time.utc(2026, 10, 14, 9), root_recording_id: root)
+    insert_view(Time.utc(2026, 10, 14, 18), root_recording_id: root)
+
+    RecordingStudioLogs.aggregate_period!("host/day_views", Time.utc(2026, 10, 14))
+    first = DaySummary.where(day: Date.new(2026, 10, 14)).sum(:views)
+    RecordingStudioLogs.aggregate_period!("host/day_views", Time.utc(2026, 10, 14))
+
+    assert_equal 2, first
+    assert_equal first, DaySummary.where(day: Date.new(2026, 10, 14)).sum(:views)
+    assert_equal 1, DaySummary.where(day: Date.new(2026, 10, 14)).count
+  end
+
   def test_insert_all_skips_sync_hooks
     RecordingStudioLogs.aggregate(
       source: ViewLog, name: "host/sync_views", summary_model: DaySummary,

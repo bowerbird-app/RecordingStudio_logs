@@ -9,7 +9,7 @@ bin/rails generate recording_studio_logs:migrations
 bin/rails db:migrate
 ```
 
-That creates `recording_studio_logs_aggregation_runs` and `recording_studio_logs_maintenance_runs`. From 0.6.0 the run identity is `(aggregation_name, period_start)`. Hosts that already have `day` run the upgrade migration. Producing gems ship the log table. Consuming gems ship the summary table. Initializers do not create those tables.
+That creates `recording_studio_logs_aggregation_runs` and `recording_studio_logs_maintenance_runs`. The create migration still stores `day`. From 0.6.0, `RenameAggregationRunDayToPeriodStart` copies it to `period_start`; running that upgrade twice is a no-op. The run identity is `(aggregation_name, period_start)`. Producing gems ship the log table. Consuming gems ship the summary table. Initializers do not create those tables.
 
 ## Existing production tables
 
