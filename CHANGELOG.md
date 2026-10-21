@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-21
+
+### Added
+- Guide for deciding contractual vs analytics logs, aggregation size, and when to add a summary table: [Decide retention and aggregation before you add a summary](docs/guides/data-retention-and-aggregation.md).
+
+### Upgrade notes
+- Docs only. No host change. Reload Logs 0.5.1 if you pin the gem by tag.
+
 ## [0.5.0] - 2026-10-20
 
 ### Added
@@ -185,7 +193,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.0...v0.4.1
