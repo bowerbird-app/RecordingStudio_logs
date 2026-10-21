@@ -16,7 +16,7 @@ Work each target in order. Do not register a second writer until the old one is 
 4. Add `root_recording_id`, backfill it from the recording's root, and add `Schema.root_and_time_index`.
 5. Keep IP address and user agent on the raw table. Do not declare them as group columns.
 6. Copy, validate counts, and switch writes using the cutover playbook. Keep the current writer until that switch. Registering a second writer would double-count.
-7. Register `DownloadLog` with `root_column: :root_recording_id` and a `count` aggregation grouped by root and recording.
+7. Register `DownloadLog` with `root_column: :root_recording_id` and `retention: :indefinite`. Do not call `aggregate`. Download logs are append-only. The host calls `delete_for_root` for owner deletion.
 8. Include `EnsuresPartition`, call `finalize!`, and schedule the jobs.
 
 The dummy table `legacy_download_logs` is that shape. `test/dummy/test/integration/legacy_download_cutover_test.rb` runs the copy, the root backfill, the count check, and rollback. Per-gem PRs are tested by the owner.

@@ -42,7 +42,7 @@ end
 RecordingStudioLogs.register(
   model: "DownloadLog",
   timestamp_column: :occurred_at,
-  retention: 90.days,
+  retention: :indefinite,
   root_column: :root_recording_id,
   owner: "Downloadable",
   aggregatable: {
@@ -51,6 +51,8 @@ RecordingStudioLogs.register(
   }
 )
 ```
+
+Do not call `aggregate` for `DownloadLog`. Rows are append-only. This gem never expires them. The host calls `delete_for_root` for owner deletion. A finite window belongs on an analytics log the owner named, such as `PageViewLog` with a summary — not on downloads.
 
 Declare only columns other gems may filter, group, or measure. IP address and user agent stay off that list.
 
