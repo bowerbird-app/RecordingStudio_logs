@@ -20,7 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Daily cleanup methods moved from `retention/cleaner.rb` into `retention/day_cleaner.rb`. Partition release now goes through `range_ready?`/`range_fresh?`. Daily behaviour is unchanged.
-- `summary_table_ready?` still guards `respond_to?(:table_exists?)` so stub summary classes without that method stay dormant instead of raising.
 - `aggregate_day!` now skips non-calendar-day aggregations.
 - MetricsBridge only publishes calendar-day aggregations.
 - Admin RunRow day is now `period_start`.

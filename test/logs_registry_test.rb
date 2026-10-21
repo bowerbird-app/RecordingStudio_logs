@@ -9,10 +9,12 @@ class LogsRegistryTest < Minitest::Test
 
   class PressKitSummary
     def self.logs_fixture? = true
+    def self.table_exists? = false
   end
 
   class PressCenterSummary
     def self.logs_fixture? = true
+    def self.table_exists? = false
   end
 
   class DownloadLog
@@ -21,6 +23,7 @@ class LogsRegistryTest < Minitest::Test
 
   class DownloadSummary
     def self.logs_fixture? = true
+    def self.table_exists? = false
   end
 
   def setup
