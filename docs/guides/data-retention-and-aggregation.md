@@ -82,7 +82,7 @@ Implemented in `AggregationDefinition` (`lib/recording_studio_logs/aggregation_d
 | `filter` | `{}` | Equality on columns the producer declared as `filter: [:eq]`. |
 | `group_by` | `[]` | Columns the producer declared `group: true`. Do not include the timestamp; the period is already the time dimension. |
 | `measurements` | `{}` | At least one. `:count` or `{ operation: :column }` for `:sum`, `:average`, `:minimum`, `:maximum`. |
-| `period` | `:day` | `:hour`, `:day`, `:week`, or `:month`. Hours align to UTC midnight, and `every` must divide 24. Days and weeks count from a fixed UTC epoch. Weeks start on Monday. Months align to January. |
+| `period` | `:day` | `:hour`, `:day`, `:week`, or `:month`. Hours, days, and weeks count from a fixed UTC epoch. Weeks start on Monday. Months align to January. |
 | `every` | `1` | Positive integer. `period: :day, every: 1` is the default bucket. |
 | `period_column` | `:day` | Summary column that stores the period start. The default is a date, so existing daily tables stay as they are. Hour periods need a datetime column. |
 | `count` | `:scheduled` | `:scheduled`, `:sync`, or `:async`. Sync rebuilds that row's period after a model save. Async enqueues `AggregatePeriodJob` and collapses duplicate enqueues with the run row. Both rebuild the whole period. `insert_all` skips the hooks. |

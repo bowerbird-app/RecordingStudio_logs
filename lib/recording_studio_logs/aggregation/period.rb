@@ -6,6 +6,7 @@ module RecordingStudioLogs
       KINDS = %i[hour day week month].freeze
       DAY_EPOCH = Date.new(1970, 1, 1)
       WEEK_EPOCH = Date.new(1970, 1, 5)
+      HOUR_EPOCH = Time.utc(1970, 1, 1)
 
       attr_reader :kind, :every
 
@@ -73,10 +74,6 @@ module RecordingStudioLogs
       def validate!
         raise InvalidRegistration, "period must be :hour, :day, :week, or :month" unless KINDS.include?(kind)
         raise InvalidRegistration, "every must be a positive integer" unless every.positive?
-        return unless kind == :hour
-        return if (24 % every).zero?
-
-        raise InvalidRegistration, "hourly every must divide 24"
       end
     end
   end

@@ -56,7 +56,7 @@ RecordingStudioLogs.aggregate(
 
 The period is the time dimension. A UTC half-open window. Do not also `group_by` the timestamp. Filters are equality on declared columns. `group_by` and measurements must be declared by the producer. Count does not need a column. Sum, average, minimum, and maximum do.
 
-`period:` is `:hour`, `:day`, `:week`, or `:month`. `every:` is a positive integer, default `1`. Hours align to UTC midnight, and `every` must divide 24. Days and weeks count from a fixed UTC epoch. Weeks start on Monday. Months align to January, so `every: 3` is Jan/Apr/Jul/Oct. `interval: :daily` still means `period: :day`.
+`period:` is `:hour`, `:day`, `:week`, or `:month`. `every:` is a positive integer, default `1`. Hours, days, and weeks count from a fixed UTC epoch. Weeks start on Monday. Months align to January, so `every: 3` is Jan/Apr/Jul/Oct. `interval: :daily` still means `period: :day`.
 
 `period_column:` is the summary column that stores the period start. The default is `:day`, a date, so existing daily tables stay as they are. Hour periods need a datetime column.
 

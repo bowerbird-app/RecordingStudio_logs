@@ -71,11 +71,26 @@ class AggregationPeriodTest < Minitest::Test
     assert_equal [Time.utc(2026, 10, 12)], starts
   end
 
-  def test_hour_every_five_is_invalid
-    error = assert_raises(RecordingStudioLogs::InvalidRegistration) do
-      RecordingStudioLogs::Aggregation::Period.new(:hour, 5)
-    end
-    assert_includes error.message, "divide 24"
+  def test_hour_every_five_is_accepted
+    period = RecordingStudioLogs::Aggregation::Period.new(:hour, 5)
+
+    assert_equal 5, period.every
+    assert_equal :hour, period.kind
+  end
+
+  def test_hour_every_five_continues_across_utc_midnight
+    period = RecordingStudioLogs::Aggregation::Period.new(:hour, 5)
+    start = period.start_for(Time.utc(2026, 10, 14, 23, 30))
+    finish = period.finish(start)
+    nxt = period.start_for(finish)
+
+    assert start < Time.utc(2026, 10, 15)
+    assert finish > Time.utc(2026, 10, 15)
+    assert_equal start, period.start_for(Time.utc(2026, 10, 15, 0, 30))
+    assert_equal start + 5.hours, finish
+    assert_equal finish, nxt
+    refute_equal start, period.start_for(start - 1.second)
+    assert_equal start, period.start_for(finish - 1.second)
   end
 
   def test_every_must_be_positive

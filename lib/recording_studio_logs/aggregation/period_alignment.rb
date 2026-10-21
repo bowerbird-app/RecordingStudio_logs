@@ -15,8 +15,8 @@ module RecordingStudioLogs
       end
 
       def hour_start(every, time)
-        hour = (time.hour / every) * every
-        Time.utc(time.year, time.month, time.day, hour)
+        hours = ((time - Period::HOUR_EPOCH) / 3600).to_i
+        Period::HOUR_EPOCH + ((hours / every) * every * 3600)
       end
 
       def day_start(every, time)

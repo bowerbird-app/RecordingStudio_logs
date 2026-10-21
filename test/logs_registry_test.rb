@@ -141,16 +141,16 @@ class LogsRegistryTest < Minitest::Test
     assert_equal :day, RecordingStudioLogs.aggregations.first.period.kind
   end
 
-  def test_hourly_every_must_divide_twenty_four
+  def test_hourly_every_five_is_accepted
     register_views
+    RecordingStudioLogs.aggregate(
+      source: ViewLog, name: "presskits/press_kit_views", summary_model: PressKitSummary,
+      period: :hour, every: 5, measurements: { views: :count }
+    )
+    definition = RecordingStudioLogs.aggregations.first
 
-    error = assert_raises(RecordingStudioLogs::InvalidRegistration) do
-      RecordingStudioLogs.aggregate(
-        source: ViewLog, name: "presskits/press_kit_views", summary_model: PressKitSummary,
-        period: :hour, every: 5, measurements: { views: :count }
-      )
-    end
-    assert_includes error.message, "divide 24"
+    assert_equal :hour, definition.period.kind
+    assert_equal 5, definition.every
   end
 
   def test_unknown_period_is_rejected
