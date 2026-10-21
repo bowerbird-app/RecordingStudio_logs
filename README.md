@@ -71,7 +71,7 @@ bin/rails generate recording_studio_logs:migrations
 bin/rails db:migrate
 ```
 
-That adds `recording_studio_logs_aggregation_runs` and `recording_studio_logs_maintenance_runs`. Producing and consuming gems ship their own log and summary migrations. See `docs/MIGRATION_NOTES.md` for UTC days, PostgreSQL 15, and what `schema.rb` dumps. See `docs/cutover.md` for a live table. Guides for a producing gem, cross-gem summaries, jobs, and the site-view example live in `docs/guides/`.
+That adds `recording_studio_logs_aggregation_runs` and `recording_studio_logs_maintenance_runs`. Producing and consuming gems ship their own log and summary migrations. See `docs/MIGRATION_NOTES.md` for UTC days, PostgreSQL 15, and what `schema.rb` dumps. See `docs/cutover.md` for a live table. Guides for a producing gem, cross-gem summaries, jobs, and the site-view example live in `docs/guides/`. Before you add retention or a summary table, read [Decide retention and aggregation before you add a summary](docs/guides/data-retention-and-aggregation.md).
 
 Call `RecordingStudioLogs.finalize!` at the end of the initializer that registers logs. The engine also finalizes on boot.
 
@@ -82,6 +82,8 @@ Summary tables are ordinary ActiveRecord models. Read them directly when metrics
 When `RecordingStudioMetrics` is loaded, a summary that is ready, groups by the log's root column, and has a count or sum is registered as a timeseries. Only count and sum are published. Do not extend Metrics from this gem. Average, minimum, and maximum stay on the summary table. The metric sums the stored daily column and is scoped to the root recording's id. The series is a fresh UTC-day rollup. A day with no summary stays empty. The resource name is the aggregation name with `/` replaced by `_`. This gem still writes summaries when metrics is absent. A bad timezone or a bad `start_at` raises a metrics input error. `group_by` on a Logs-published timeseries also raises a metrics input error. Metrics registered by other gems keep the `group_by` dimensions they declared.
 
 ## Retention and owner deletion
+
+Contractual logs (proof you may still owe someone) stay. Analytics logs may expire after they have been summarized. That split is a product decision. The checklist, every register and aggregate option, and the Views / Downloadable examples are in [Decide retention and aggregation before you add a summary](docs/guides/data-retention-and-aggregation.md).
 
 `RecordingStudioLogs.cleanup_retention!` drops a month only when the whole month is older than the policy and every aggregation for that log has a succeeded run for every UTC day in the month. A log with no aggregations is not fresh, so the month stays. A consumer registered later, and one whose model is not loaded, also keep the month. Each success must have finished at or after the newest arrival in the month. Arrival is the later of the event time and `arrived_at`. Tables created with `Schema.partitioned_log` stamp `arrived_at` in the database at insert. `created_at` counts too, when the table has it. The drop and a non-partitioned delete take a lock that blocks inserts, then read the newest row again before removing anything. A row committed while that lock is waiting is still there when cleanup continues. Non-partitioned cleanup deletes only the UTC days that have a covering success. A day that still has a row before the cutoff, and has no success, stays.
 
