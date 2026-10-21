@@ -12,6 +12,7 @@ require "recording_studio_logs/column_contract"
 require "recording_studio_logs/measurement"
 require "recording_studio_logs/retention"
 require "recording_studio_logs/log_registration"
+require "recording_studio_logs/aggregation/period"
 require "recording_studio_logs/aggregation_definition"
 require "recording_studio_logs/registry"
 require "recording_studio_logs/lock"
@@ -31,6 +32,7 @@ require "recording_studio_logs/partitioning/maintainer"
 require "recording_studio_logs/retention/raw_rows"
 require "recording_studio_logs/retention/cleaner"
 require "recording_studio_logs/retention/owner_deletion"
+require "recording_studio_logs/aggregation/count_trigger"
 require "recording_studio_logs/aggregation/statement"
 require "recording_studio_logs/aggregation/runner"
 require "recording_studio_logs/aggregation/scheduler"
@@ -98,12 +100,20 @@ module RecordingStudioLogs
       Aggregation::Scheduler.aggregate_day(day)
     end
 
+    def aggregate_due!(now: Time.now.utc)
+      Aggregation::Scheduler.aggregate_due(now)
+    end
+
+    def aggregate_period!(name, period_start)
+      Aggregation::Scheduler.aggregate_period(name, period_start)
+    end
+
     def backfill!(name, from:, to:)
       Aggregation::Scheduler.backfill(name, from: from, to: to)
     end
 
-    def reconcile!
-      Aggregation::Scheduler.reconcile
+    def reconcile!(now: Time.now.utc, today: nil)
+      Aggregation::Scheduler.reconcile(now: now, today: today)
     end
 
     def cleanup_retention!(dry_run: false)

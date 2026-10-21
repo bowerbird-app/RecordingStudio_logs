@@ -33,7 +33,8 @@ module RecordingStudioLogs
     end
 
     def publish?(definition)
-      definition.summary_ready? && rooted?(definition) && published_measurements(definition).any?
+      definition.calendar_day? && definition.summary_ready? && rooted?(definition) &&
+        published_measurements(definition).any?
     end
 
     def rooted?(definition)

@@ -5,9 +5,9 @@ module RecordingStudioLogs
     class Statement
       attr_reader :binds
 
-      def initialize(aggregation, day, connection)
+      def initialize(aggregation, period_start, connection)
         @aggregation = aggregation
-        @day = day
+        @period_start = period_start
         @connection = connection
         @log = aggregation.log
         @binds = []
@@ -25,15 +25,15 @@ module RecordingStudioLogs
 
       private
 
-      attr_reader :aggregation, :day, :connection, :log
+      attr_reader :aggregation, :period_start, :connection, :log
 
       def insert_list
-        columns = ["id", "day", *group_names, *measurement_names, "created_at", "updated_at"]
+        columns = ["id", aggregation.period_column.to_s, *group_names, *measurement_names, "created_at", "updated_at"]
         columns.map { |column| quote(column) }.join(", ")
       end
 
       def select_list
-        parts = [bind(day), *group_names.map { |column| quote(column) }]
+        parts = [bind(aggregation.summary_period_key(period_start)), *group_names.map { |column| quote(column) }]
         parts.concat(aggregation.measurements.map { |measurement| measurement.sql(connection) })
         parts << "CURRENT_TIMESTAMP" << "CURRENT_TIMESTAMP"
         parts.join(", ")
@@ -46,7 +46,7 @@ module RecordingStudioLogs
       end
 
       def window_clauses
-        start_at, finish_at = window
+        start_at, finish_at = aggregation.period.window(period_start)
         [
           "#{quote(log.timestamp_column)} >= #{bind(start_at)}",
           "#{quote(log.timestamp_column)} < #{bind(finish_at)}"
@@ -57,11 +57,6 @@ module RecordingStudioLogs
         return "" if group_names.empty?
 
         "GROUP BY #{group_names.map { |column| quote(column) }.join(', ')}"
-      end
-
-      def window
-        start_at = Time.utc(day.year, day.month, day.day)
-        [start_at, start_at + 1.day]
       end
 
       def group_names

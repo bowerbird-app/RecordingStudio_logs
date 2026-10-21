@@ -12,7 +12,7 @@ class DocsCoverageTest < Minitest::Test
     assert_includes text, "delete_for_root"
     assert_includes text, "Cancelling a subscription does not delete logs"
     assert_includes text, "session"
-    refute_includes text, "hourly"
+    assert_includes text, "period"
   end
 
   def test_metrics_docs_do_not_extend_metrics

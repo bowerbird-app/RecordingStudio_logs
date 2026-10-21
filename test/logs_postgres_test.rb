@@ -901,7 +901,8 @@ class LogsPostgresTest < Minitest::Test
   end
 
   def run_status(name, day)
-    RecordingStudioLogs::AggregationRun.find_by!(aggregation_name: name, day: day).status
+    start = RecordingStudioLogs::AggregationRun.coerce_start(day)
+    RecordingStudioLogs::AggregationRun.find_by!(aggregation_name: name, period_start: start).status
   end
 
   def expired_month

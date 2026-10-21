@@ -1,10 +1,10 @@
 # Log semantics
 
-This page explains how counts stay honest. v1 stores one raw row per fact and rebuilds one UTC day at a time. It does not correct events, count distinct visitors, or follow a resource after you move it.
+This page explains how counts stay honest. The default is one UTC day at a time. You can also bucket by hour, week, or month. It does not correct events, count distinct visitors, or follow a resource after you move it.
 
 ## Cardinality
 
-Each `group_by` column multiplies summary rows. A day with 10 workspaces and 1,000 pages is about 10,000 groups when you group by workspace and page. Add session id, IP address, or user agent and the summary approaches the raw table.
+Each `group_by` column multiplies summary rows. A period with 10 workspaces and 1,000 pages is about 10,000 groups when you group by workspace and page. Add session id, IP address, or user agent and the summary approaches the raw table.
 
 Group by the owner and the resource people already look up. Filter on type. Leave request fields on the raw row.
 
@@ -12,7 +12,7 @@ Group by the owner and the resource people already look up. Filter on type. Leav
 
 Two writers on the same facts double the count. Keep one insert path until cutover, then switch it.
 
-Rebuilding a day deletes that day's summary rows and inserts them again. A second successful run of the same day does not add a second copy.
+Rebuilding a period deletes that period's summary rows and inserts them again. A second successful run of the same period does not add a second copy.
 
 Registering the same aggregation name from a second owner is rejected. The same owner can replace the definition.
 
@@ -26,7 +26,7 @@ A session is a product rule, not a log default. Store a session id only when you
 
 ## Event corrections
 
-There is no correction table and no negative row. If a fact was wrong, delete or replace the raw row and rebuild that UTC day. If you cannot change the raw row, the summary stays wrong.
+There is no correction table and no negative row. If a fact was wrong, delete or replace the raw row and rebuild that period. If you cannot change the raw row, the summary stays wrong.
 
 Average, minimum, and maximum stay on the summary table. They are not timeseries metrics. See [Querying](../README.md#querying).
 
@@ -34,19 +34,19 @@ Average, minimum, and maximum stay on the summary table. They are not timeseries
 
 A row keeps the month of its event time. Arrival is the later of that time and `arrived_at`. `Schema.partitioned_log` stamps `arrived_at` in the database.
 
-`ReconciliationJob` rebuilds the last `reconciliation_days` before today. A row that arrives after the last success for its month blocks retention until a later success covers it. Cleanup takes a lock, then reads the newest arrival again, so a row that commits while it waits still keeps the month.
+`ReconciliationJob` rebuilds the last `reconciliation_days` periods before now. Daily aggregations still treat that integer as days. A row that arrives after the last success for its month blocks retention until a later success covers it. Cleanup takes a lock, then reads the newest arrival again, so a row that commits while it waits still keeps the month. Raw rows stay until every covering period is closed and counted.
 
 ## Parent and root changes
 
-The raw row stores the parent or root you wrote at insert time. Moving a page or changing a recording's root does not rewrite old log rows. Summaries that group by that snapshot keep the old owner until you update the raw rows and rebuild those days.
+The raw row stores the parent or root you wrote at insert time. Moving a page or changing a recording's root does not rewrite old log rows. Summaries that group by that snapshot keep the old owner until you update the raw rows and rebuild those periods.
 
 `delete_for_root` deletes rows whose stored root column matches. It does not chase a resource to a new root.
 
 ## UTC and reporting time zones
 
-A summary day is a UTC half-open window, from midnight UTC up to the next midnight. Jobs, retention, and rebuilds use that same day.
+A default summary day is a UTC half-open window, from midnight UTC up to the next midnight. Hour buckets align to UTC midnight. Weeks start on Monday. Months align to January. Jobs, retention, and rebuilds use the same period start.
 
-Metrics may accept a reporting time zone on execute. That zone does not regroup stored days. A view at 22:00 in Los Angeles on 13 October still sits on 14 October UTC. Empty days stay empty. Do not also `group_by` the timestamp.
+Metrics may accept a reporting time zone on execute. That zone does not regroup stored days. A view at 22:00 in Los Angeles on 13 October still sits on 14 October UTC. Empty days stay empty. Do not also `group_by` the timestamp. Metrics still publish only default daily summaries.
 
 ## Mixed retention
 

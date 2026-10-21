@@ -2,7 +2,7 @@
 
 module RecordingStudioLogs
   module Retention
-    module RawRows
+    module RawRows # rubocop:disable Metrics/ModuleLength
       module_function
 
       def newest(connection, log, lower, upper)
@@ -10,12 +10,17 @@ module RecordingStudioLogs
       end
 
       def days_for(connection, table_name, time_column, root_column, root_recording_id)
+        times_for(connection, table_name, time_column, root_column, root_recording_id)
+          .map { |time| time.utc.to_date }.uniq
+      end
+
+      def times_for(connection, table_name, time_column, root_column, root_recording_id)
         time = connection.quote_column_name(time_column)
         sql = <<~SQL.squish
-          SELECT DISTINCT #{time}::date FROM #{quoted(connection, table_name)}
+          SELECT #{time} FROM #{quoted(connection, table_name)}
           WHERE #{match(connection, root_column, root_recording_id)}
         SQL
-        connection.select_values(sql).map(&:to_date)
+        connection.select_values(sql).filter_map { |value| coerce_time(value) }
       end
 
       def count(connection, table_name, column, root_recording_id)
@@ -40,6 +45,41 @@ module RecordingStudioLogs
         sql = "SELECT DISTINCT #{utc_day(time)} FROM #{quoted_table(connection, log)} " \
               "WHERE #{time} < #{connection.quote(cutoff)}"
         connection.select_values(sql).map(&:to_date)
+      end
+
+      def newest_before(connection, log, cutoff, lower, upper)
+        stamp_columns(log).filter_map { |column| max_in_window(connection, log, column, cutoff, lower, upper) }.max
+      end
+
+      def expired_bounds(connection, log, cutoff)
+        time = connection.quote_column_name(log.timestamp_column)
+        sql = "SELECT MIN(#{time}), MAX(#{time}) FROM #{quoted_table(connection, log)} " \
+              "WHERE #{time} < #{connection.quote(cutoff)}"
+        row = connection.select_rows(sql).first
+        return if row.blank? || row[0].blank?
+
+        [coerce_time(row[0]), coerce_time(row[1])]
+      end
+
+      def delete_windows(connection, log, cutoff, windows)
+        return if windows.blank?
+
+        time = connection.quote_column_name(log.timestamp_column)
+        clauses = windows.map do |lower, upper|
+          "(#{time} >= #{connection.quote(lower)} AND #{time} < #{connection.quote(upper)})"
+        end
+        sql = "DELETE FROM #{quoted_table(connection, log)} WHERE #{time} < #{connection.quote(cutoff)} " \
+              "AND (#{clauses.join(' OR ')})"
+        connection.execute(sql)
+      end
+
+      def max_in_window(connection, log, column, cutoff, lower, upper) # rubocop:disable Metrics/ParameterLists
+        time = connection.quote_column_name(log.timestamp_column)
+        quoted = connection.quote_column_name(column)
+        sql = "SELECT MAX(#{quoted}) FROM #{quoted_table(connection, log)} " \
+              "WHERE #{time} < #{connection.quote(cutoff)} AND #{time} >= #{connection.quote(lower)} " \
+              "AND #{time} < #{connection.quote(upper)}"
+        coerce_time(connection.select_value(sql))
       end
 
       def newest_for_days(connection, log, cutoff, days)

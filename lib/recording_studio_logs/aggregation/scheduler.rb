@@ -7,12 +7,21 @@ module RecordingStudioLogs
         new(connection).aggregate_day(day)
       end
 
+      def self.aggregate_due(now = Time.now.utc, connection = ActiveRecord::Base.connection)
+        new(connection).aggregate_due(now)
+      end
+
+      def self.aggregate_period(name, period_start, connection = ActiveRecord::Base.connection)
+        new(connection).aggregate_period(name, period_start)
+      end
+
       def self.backfill(name, from:, to:, connection: ActiveRecord::Base.connection)
         new(connection).backfill(name, from, to)
       end
 
-      def self.reconcile(connection = ActiveRecord::Base.connection, today: Time.now.utc.to_date)
-        new(connection).reconcile(today)
+      def self.reconcile(connection = ActiveRecord::Base.connection, now: nil, today: nil)
+        stamp = now || today || Time.now.utc
+        new(connection).reconcile(stamp)
       end
 
       def initialize(connection)
@@ -21,20 +30,34 @@ module RecordingStudioLogs
       end
 
       def aggregate_day(day)
-        runnable.each { |definition| run(definition, day) }
+        start = AggregationRun.coerce_start(day)
+        runnable.select(&:calendar_day?).each { |definition| run(definition, start) }
+        raise_failures!
+      end
+
+      def aggregate_due(now)
+        runnable.each do |definition|
+          definition.scheduled_starts(now).each { |start| run(definition, start) }
+        end
+        raise_failures!
+      end
+
+      def aggregate_period(name, period_start)
+        run(RecordingStudioLogs.registry.aggregation(name), period_start)
         raise_failures!
       end
 
       def backfill(name, from, to)
         definition = RecordingStudioLogs.registry.aggregation(name)
-        each_day(from, to) { |day| run(definition, day) }
+        definition.period.each_start(from, to) { |start| run(definition, start) }
         raise_failures!
       end
 
-      def reconcile(today)
-        each_day(today - RecordingStudioLogs.configuration.reconciliation_days, today - 1) do |day|
-          aggregate_day(day)
+      def reconcile(now)
+        runnable.each do |definition|
+          definition.reconciliation_starts(now).each { |start| run(definition, start) }
         end
+        raise_failures!
       end
 
       private
@@ -45,19 +68,10 @@ module RecordingStudioLogs
         RecordingStudioLogs.aggregations.reject(&:dormant?)
       end
 
-      def run(definition, day)
-        Runner.call(definition, day: day, connection: connection)
+      def run(definition, period_start)
+        Runner.call(definition, period_start: period_start, connection: connection)
       rescue StandardError => e
         failures << e
-      end
-
-      def each_day(from, to)
-        date = from.to_date
-        finish = to.to_date
-        while date <= finish
-          yield date
-          date += 1
-        end
       end
 
       def raise_failures!

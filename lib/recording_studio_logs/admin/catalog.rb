@@ -9,7 +9,7 @@ module RecordingStudioLogs
 
     AggregationRow = Data.define(:id, :key, :name, :source, :owner, :filters, :grouping, :measurements, :interval,
                                  :last_success, :status)
-    RunRow = Data.define(:id, :day, :status, :finished_at, :error_message)
+    RunRow = Data.define(:id, :period_start, :status, :finished_at, :error_message)
 
     module Catalog
       module_function
@@ -66,7 +66,7 @@ module RecordingStudioLogs
       def runs_for(key)
         return [] unless Status.runs_table?
 
-        AggregationRun.where(aggregation_name: key).order(day: :desc).limit(31).map { |run| run_row(run) }
+        AggregationRun.where(aggregation_name: key).order(period_start: :desc).limit(31).map { |run| run_row(run) }
       end
 
       def log_for(key)
@@ -111,7 +111,7 @@ module RecordingStudioLogs
       end
 
       def run_row(run)
-        RunRow.new(id: run.id, day: run.day, status: run.status, finished_at: run.finished_at,
+        RunRow.new(id: run.id, period_start: run.period_start, status: run.status, finished_at: run.finished_at,
                    error_message: run.error_message)
       end
 

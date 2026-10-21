@@ -29,12 +29,20 @@ module RecordingStudioLogs
       [bytes[0, 4].unpack1("l>"), bytes[4, 4].unpack1("l>")]
     end
 
-    def key(aggregation_name, day)
-      "aggregation:#{aggregation_name}:#{day}"
+    def key(aggregation_name, period_start)
+      "aggregation:#{aggregation_name}:#{AggregationRun.coerce_start(period_start).iso8601}"
     end
 
-    def names_for(definitions, days)
-      definitions.flat_map { |definition| days.map { |day| key(definition.name, day) } }
+    def names_for(definitions, units)
+      definitions.flat_map do |definition|
+        Array(units).map { |unit| key(definition.name, definition.period.start_for(unit)) }.uniq
+      end
+    end
+
+    def names_for_range(definitions, lower, upper)
+      definitions.flat_map do |definition|
+        definition.period.starts_overlapping(lower, upper).map { |start| key(definition.name, start) }
+      end
     end
   end
 end

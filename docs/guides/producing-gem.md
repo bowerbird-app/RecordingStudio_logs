@@ -5,7 +5,7 @@ A producing gem owns the table and the insert path. RecordingStudioLogs owns par
 ## 1. Add the gem
 
 ```ruby
-gem "recording_studio_logs", github: "bowerbird-app/RecordingStudio_logs", tag: "v0.5.0"
+gem "recording_studio_logs", github: "bowerbird-app/RecordingStudio_logs", tag: "v0.6.0"
 ```
 
 Run `bin/rails generate recording_studio_logs:migrations` and migrate. That adds run tables only.

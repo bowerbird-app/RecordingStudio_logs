@@ -39,9 +39,9 @@ RecordingStudioLogs.aggregate(
 )
 ```
 
-The name is `owner/purpose`. Rebuilding a day replaces that day's rows, so a retry does not double-count.
+The name is `owner/purpose`. Rebuilding a period replaces that period's rows, so a retry does not double-count. Defaults are `period: :day, every: 1, count: :scheduled`. Pass `period: :hour` with a datetime `period_column:` when you need hour buckets.
 
-Group by the log's root column when owner deletion should drop those summary rows. A summary that omits the root is rebuilt for the affected days instead, and `delete_for_root` still lists it as unscoped.
+Group by the log's root column when owner deletion should drop those summary rows. A summary that omits the root is rebuilt for the affected period starts instead, and `delete_for_root` still lists it as unscoped.
 
 ## 4. Query
 
