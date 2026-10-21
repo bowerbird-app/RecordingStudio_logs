@@ -9,7 +9,7 @@ class CreateRecordingStudioLogsRuns < ActiveRecord::Migration[8.1]
   def aggregation_runs
     create_table :recording_studio_logs_aggregation_runs, id: :uuid do |table|
       table.string :aggregation_name, null: false
-      table.datetime :period_start, null: false
+      table.date :day, null: false
       table.string :status, null: false
       table.text :error_message
       table.datetime :finished_at
@@ -33,8 +33,8 @@ class CreateRecordingStudioLogsRuns < ActiveRecord::Migration[8.1]
   private
 
   def index_aggregation_runs
-    add_index :recording_studio_logs_aggregation_runs, %i[aggregation_name period_start],
-              unique: true, name: "index_rs_logs_aggregation_runs_on_name_and_period"
+    add_index :recording_studio_logs_aggregation_runs, %i[aggregation_name day],
+              unique: true, name: "index_rs_logs_aggregation_runs_on_name_and_day"
   end
 
   def index_maintenance_runs
