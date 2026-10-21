@@ -15,7 +15,7 @@ module RecordingStudioLogs
       def times_for(log, record)
         [
           record[log.timestamp_column],
-          record.instance_variable_get(:@recording_studio_logs_previous_time)
+          record.recording_studio_logs_previous_time
         ].compact.uniq
       end
 

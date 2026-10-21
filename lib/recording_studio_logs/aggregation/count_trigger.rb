@@ -6,6 +6,8 @@ module RecordingStudioLogs
       extend ActiveSupport::Concern
 
       included do
+        attr_reader :recording_studio_logs_previous_time
+
         before_save :recording_studio_logs_remember_time
         after_commit :recording_studio_logs_count_period
       end
