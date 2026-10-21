@@ -1,6 +1,6 @@
 # RecordingStudioLogs
 
-Shared PostgreSQL logging for Recording Studio gems. A producing gem stores high-volume rows in its own table. Other gems register daily summaries over the columns that producer allows. RecordingStudio_metrics stays the query API. This gem does not depend on it.
+Shared PostgreSQL logging for Recording Studio gems. A producing gem stores high-volume rows in its own table. Other gems register summaries over the columns that producer allows, with configurable periods (daily by default). RecordingStudio_metrics stays the query API. This gem does not depend on it.
 
 Logs are exhaust. They are not recordings, and they are not `log_event!` history.
 
@@ -41,7 +41,7 @@ end
 
 ## Aggregations
 
-A consumer registers a daily summary. The name is namespaced, `owner/purpose`.
+A consumer registers a summary. The name is namespaced, `owner/purpose`. The default bucket is one UTC day.
 
 ```ruby
 RecordingStudioLogs.aggregate(
@@ -54,13 +54,21 @@ RecordingStudioLogs.aggregate(
 )
 ```
 
-The day is the time dimension. It is a UTC half-open window, `[day, next day)`. Do not also `group_by` the timestamp. Filters are equality on declared columns. `group_by` and measurements must be declared by the producer. Count does not need a column. Sum, average, minimum, and maximum do.
+The period is the time dimension. A UTC half-open window. Do not also `group_by` the timestamp. Filters are equality on declared columns. `group_by` and measurements must be declared by the producer. Count does not need a column. Sum, average, minimum, and maximum do.
 
-Each aggregation has its own summary table and its own migration. Initializers do not create tables. The summary needs `id`, `day`, the group columns, one integer or numeric column per measurement, and timestamps. Unique index the identity columns with `nulls_not_distinct: true`, so SQL NULL is its own group. `RecordingStudioLogs::Schema.summary_index` builds that index.
+`period:` is `:hour`, `:day`, `:week`, or `:month`. `every:` is a positive integer, default `1`. Hours, days, and weeks count from a fixed UTC epoch. Weeks start on Monday. Months align to January, so `every: 3` is Jan/Apr/Jul/Oct. `interval: :daily` still means `period: :day`.
 
-Two aggregations can read the same raw rows. Rebuilding a day deletes that day's summary rows and inserts them again, so a rerun does not double-count. One failure is recorded on that aggregation and does not roll back a sibling that already finished.
+`period_column:` is the summary column that stores the period start. The default is `:day`, a date, so existing daily tables stay as they are. Hour periods need a datetime column.
 
-Hourly rollups, distinct counts, and event corrections are out of this version.
+`count:` is `:scheduled` by default. `:sync` rebuilds that row's period after a model save in the same request. `:async` enqueues `AggregatePeriodJob` for that period and collapses duplicate enqueues with the run row. Both rebuild the whole period. `insert_all` does not fire those hooks. The scheduled job is the safety net.
+
+`count_after:` waits after a period ends before the scheduled path counts it. `include_current:` also refreshes the open period.
+
+Each aggregation has its own summary table and its own migration. Initializers do not create tables. The summary needs `id`, the period column, the group columns, one integer or numeric column per measurement, and timestamps. Unique index the identity columns with `nulls_not_distinct: true`, so SQL NULL is its own group. `RecordingStudioLogs::Schema.summary_index` builds that index.
+
+Two aggregations can read the same raw rows. Rebuilding a period deletes that period's summary rows and inserts them again, so a rerun does not double-count. One failure is recorded on that aggregation and does not roll back a sibling that already finished.
+
+Distinct counts and event corrections are out of this version.
 
 ## Build the tables
 
@@ -85,21 +93,23 @@ When `RecordingStudioMetrics` is loaded, a summary that is ready, groups by the 
 
 With no product decision, register `retention: :indefinite` and do not add an aggregate. That is the register default and the org default for a gem that is ready for RS_Logs. Finite retention plus a summary only when the owner names both (`RecordingStudio_views` is the exception). Contractual logs stay on the raw row. Analytics logs may expire after they have been summarized. That split is a product decision. The checklist, every register and aggregate option, and the Views / Downloadable examples are in [Decide retention and aggregation before you add a summary](docs/guides/data-retention-and-aggregation.md).
 
-`RecordingStudioLogs.cleanup_retention!` drops a month only when the whole month is older than the policy and every aggregation for that log has a succeeded run for every UTC day in the month. A log with no aggregations is not fresh, so the month stays. A consumer registered later, and one whose model is not loaded, also keep the month. Each success must have finished at or after the newest arrival in the month. Arrival is the later of the event time and `arrived_at`. Tables created with `Schema.partitioned_log` stamp `arrived_at` in the database at insert. `created_at` counts too, when the table has it. The drop and a non-partitioned delete take a lock that blocks inserts, then read the newest row again before removing anything. A row committed while that lock is waiting is still there when cleanup continues. Non-partitioned cleanup deletes only the UTC days that have a covering success. A day that still has a row before the cutoff, and has no success, stays.
+`RecordingStudioLogs.cleanup_retention!` drops a month only when the whole month is older than the policy and every aggregation for that log has a succeeded run for every period that overlaps the month. A log with no aggregations is not fresh, so the month stays. A consumer registered later, and one whose model is not loaded, also keep the month. Each success must have finished at or after the newest arrival in the month. Arrival is the later of the event time and `arrived_at`. Tables created with `Schema.partitioned_log` stamp `arrived_at` in the database at insert. `created_at` counts too, when the table has it. The drop and a non-partitioned delete take a lock that blocks inserts, then read the newest row again before removing anything. A row committed while that lock is waiting is still there when cleanup continues. Non-partitioned cleanup deletes only rows whose covering period is closed and counted. A period that still has a row before the cutoff, and has no success, stays.
 
-`RecordingStudioLogs.delete_for_root(root_recording_id:)` deletes matching raw rows and the summary rows whose `group_by` includes that root column. It does this in one transaction, under the same per-day advisory locks the rebuild uses. Summaries that do not group by the root are rebuilt for the affected UTC days, so the deleted owner's counts do not stay in the total. Those names are still reported as `unscoped_aggregations`. A consumer whose model is not loaded blocks the delete. Pass `dry_run: true` to count without deleting. Cancelling a subscription does not call this. The host decides.
+`RecordingStudioLogs.delete_for_root(root_recording_id:)` deletes matching raw rows and the summary rows whose `group_by` includes that root column. It does this in one transaction, under the same per-period advisory locks the rebuild uses. Summaries that do not group by the root are rebuilt for the affected period starts, so the deleted owner's counts do not stay in the total. Those names are still reported as `unscoped_aggregations`. A consumer whose model is not loaded blocks the delete. Pass `dry_run: true` to count without deleting. Cancelling a subscription does not call this. The host decides.
 
 ## Jobs
 
 The host schedules these ActiveJob classes. This gem does not start Sidekiq or a cron runner.
 
 - `RecordingStudioLogs::PartitionMaintenanceJob` keeps the previous month through `months_ahead`.
-- `RecordingStudioLogs::DailyAggregationJob` rebuilds yesterday (UTC) for every ready aggregation.
-- `RecordingStudioLogs::ReconciliationJob` rebuilds the last `reconciliation_days` before today, so a late row is included.
-- `RecordingStudioLogs::BackfillJob` rebuilds one aggregation across an inclusive date range.
+- `RecordingStudioLogs::DailyAggregationJob` rebuilds yesterday (UTC) for every ready daily aggregation.
+- `RecordingStudioLogs::AggregationJob` rebuilds every aggregation whose period has closed, plus `count_after`, and the current period when `include_current` is set. Run this often if you use hour, week, or month buckets.
+- `RecordingStudioLogs::AggregatePeriodJob` rebuilds one period of one aggregation. Async count enqueues it.
+- `RecordingStudioLogs::ReconciliationJob` rebuilds the last `reconciliation_days` periods before now, so a late row is included. Daily aggregations still treat that integer as days.
+- `RecordingStudioLogs::BackfillJob` rebuilds one aggregation across an inclusive range of period starts.
 - `RecordingStudioLogs::RetentionCleanupJob` runs retention. `perform(dry_run: true)` previews.
 
-The same entry points exist as `RecordingStudioLogs.maintain_partitions!`, `aggregate_day!`, `reconcile!`, `backfill!`, and `cleanup_retention!`.
+The same entry points exist as `RecordingStudioLogs.maintain_partitions!`, `aggregate_day!`, `aggregate_due!`, `aggregate_period!`, `reconcile!`, `backfill!`, and `cleanup_retention!`.
 
 ## Moving an existing table
 

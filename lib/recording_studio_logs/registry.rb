@@ -19,6 +19,7 @@ module RecordingStudioLogs
       definition = AggregationDefinition.new(**attributes)
       store_aggregation(definition)
       definition.validate_against_log! if definition.log && definition.source_model
+      definition.install_count_hook!
       definition
     end
 
@@ -48,6 +49,7 @@ module RecordingStudioLogs
         raise InvalidRegistration, "#{definition.name} source is not registered" if definition.log.nil?
 
         definition.validate_against_log!
+        definition.install_count_hook!
       end
     end
 
@@ -91,6 +93,7 @@ module RecordingStudioLogs
         next if definition.source_model.nil?
 
         definition.validate_against_log!
+        definition.install_count_hook!
       end
     end
   end

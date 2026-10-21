@@ -3,20 +3,20 @@
 module RecordingStudioLogs
   module Aggregation
     class Runner
-      def self.call(aggregation, day:, connection: ActiveRecord::Base.connection)
-        new(aggregation, day, connection).call
+      def self.call(aggregation, period_start:, connection: ActiveRecord::Base.connection)
+        new(aggregation, period_start, connection).call
       end
 
-      def initialize(aggregation, day, connection)
+      def initialize(aggregation, period_start, connection)
         @aggregation = aggregation
-        @day = day.to_date
+        @period_start = AggregationRun.coerce_start(period_start)
         @connection = connection
       end
 
       def call
         refuse_dormant!
         refuse_missing_table!
-        replace_day
+        replace_period
       rescue NotReady
         raise
       rescue StandardError => e
@@ -26,7 +26,7 @@ module RecordingStudioLogs
 
       private
 
-      attr_reader :aggregation, :day, :connection
+      attr_reader :aggregation, :period_start, :connection
 
       def refuse_dormant!
         raise NotReady, "#{aggregation.name} is waiting for its gems" if aggregation.dormant?
@@ -40,38 +40,43 @@ module RecordingStudioLogs
         raise error
       end
 
-      def replace_day
-        Lock.with(connection, Lock.key(aggregation.name, day)) do
-          delete_day
-          insert_day
+      def replace_period
+        Lock.with(connection, Lock.key(aggregation.name, period_start)) do
+          delete_period
+          insert_period
           AggregationRun.record!(
-            aggregation_name: aggregation.name, day: day, status: "succeeded", connection: connection
+            aggregation_name: aggregation.name, period_start: period_start, status: "succeeded",
+            connection: connection
           )
         end
       end
 
-      def delete_day
-        sql = "DELETE FROM #{summary_table} WHERE #{quote(:day)} = #{connection.quote(day)}"
+      def delete_period
+        sql = "DELETE FROM #{summary_table} WHERE #{quote(aggregation.period_column)} = #{connection.quote(period_key)}"
         connection.execute(sql)
       end
 
-      def insert_day
+      def insert_period
         sql = statement.sql
         connection.execute(ActiveRecord::Base.sanitize_sql_array([sql, *statement.binds]))
       end
 
       def statement
-        @statement ||= Statement.new(aggregation, day, connection)
+        @statement ||= Statement.new(aggregation, period_start, connection)
       end
 
       def record_failure(error)
         AggregationRun.record!(
           aggregation_name: aggregation.name,
-          day: day,
+          period_start: period_start,
           status: "failed",
           error_message: error.message,
           connection: connection
         )
+      end
+
+      def period_key
+        aggregation.summary_period_key(period_start)
       end
 
       def summary_table

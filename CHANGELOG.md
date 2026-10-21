@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-21
+
+### Added
+- `RecordingStudioLogs.aggregate` accepts `period:` (`:hour`, `:day`, `:week`, `:month`) and `every:` (default `1`). Existing daily summaries keep `period: :day, every: 1`.
+- `period_column:` names the summary's period-start column. The default is `:day`, a date, so current summary tables do not need a migration. Hour periods need a datetime column.
+- `count:` is `:scheduled` (default), `:sync`, or `:async`. Sync recounts that period in the same request after a model save. Async enqueues `AggregatePeriodJob` for that period. Both always rebuild the whole period. `insert_all` skips the hooks.
+- `count_after:` waits after a period ends before the scheduled path counts it. `include_current:` also refreshes the open period.
+- `aggregate_due!`, `aggregate_period!`, `AggregationJob`, `AggregatePeriodJob`, and `reconcile!(now:, today:)`.
+- `RecordingStudioLogs::AggregationJob` counts every aggregation whose period has closed, plus `count_after` and the current period when asked. `DailyAggregationJob` still counts yesterday for daily aggregations.
+- Install and upgrade migrations store aggregation runs on `period_start` instead of `day`.
+
+### Changed
+- Daily cleanup methods moved from `retention/cleaner.rb` into `retention/day_cleaner.rb`. Partition release now goes through `range_ready?`/`range_fresh?`. Daily behaviour is unchanged.
+- `aggregate_day!` now skips non-calendar-day aggregations.
+- MetricsBridge only publishes calendar-day aggregations.
+- Admin RunRow day is now `period_start`.
+- `Runner.call` takes `period_start:`.
+- Reconciliation recounts the last `reconciliation_days` periods per aggregation. Daily aggregations still use that integer as days.
+- Retention deletes raw rows only after every covering period is closed and counted.
+- Owner deletion rebuilds unscoped summaries for the affected period starts.
+- Owner deletion loads distinct hour-truncated timestamps for a root instead of every raw row time.
+- Aggregation runs upgrade copies `day` as midnight without session time zone conversion.
+
+### Upgrade notes
+- Run `bin/rails generate recording_studio_logs:migrations` and migrate **before** booting 0.6.0 code. Hosts that already have the runs table get `period_start` from the upgrade migration. See [UPGRADING.md](UPGRADING.md).
+- `interval: :daily` still registers a one-day summary. Use `period:` for hour, week, and month buckets.
+- Schedule `AggregationJob` often if you use a non-daily period. `DailyAggregationJob` ignores those aggregations.
+
 ## [0.5.1] - 2026-10-21
 
 ### Added
@@ -193,7 +221,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.1...v0.4.2

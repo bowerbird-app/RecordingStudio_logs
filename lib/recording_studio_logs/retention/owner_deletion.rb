@@ -23,10 +23,10 @@ module RecordingStudioLogs
       end
 
       def hold
-        days = affected_days
-        Lock.with(connection, *Lock.names_for(loaded_consumers, days)) do
-          current = affected_days
-          extra = Lock.names_for(loaded_consumers, current - days)
+        times = affected_times
+        Lock.with(connection, *Lock.names_for(loaded_consumers, times)) do
+          current = affected_times
+          extra = Lock.names_for(loaded_consumers, current - times)
           report(Lock.with(connection, *extra) { delete_and_rebuild(current) })
         end
       end
@@ -60,9 +60,9 @@ module RecordingStudioLogs
         row_count(definition.summary_model.table_name, definition.log.root_column)
       end
 
-      def delete_and_rebuild(days)
+      def delete_and_rebuild(times)
         removed = remove_matching
-        rebuild(days)
+        rebuild(times)
         removed
       end
 
@@ -80,9 +80,11 @@ module RecordingStudioLogs
         removed_count(definition.summary_model.table_name, definition.log.root_column)
       end
 
-      def rebuild(days)
+      def rebuild(times)
         unscoped.each do |definition|
-          days.each { |day| Aggregation::Runner.call(definition, day: day, connection: connection) }
+          times.map { |time| definition.period.start_for(time) }.uniq.each do |start|
+            Aggregation::Runner.call(definition, period_start: start, connection: connection)
+          end
         end
       end
 
@@ -118,12 +120,12 @@ module RecordingStudioLogs
         consumers.reject(&:dormant?)
       end
 
-      def affected_days
-        rooted_logs.flat_map { |log| days_in(log) }.uniq
+      def affected_times
+        rooted_logs.flat_map { |log| times_in(log) }.uniq
       end
 
-      def days_in(log)
-        RawRows.days_for(connection, log.table_name, log.timestamp_column, log.root_column, root_recording_id)
+      def times_in(log)
+        RawRows.times_for(connection, log.table_name, log.timestamp_column, log.root_column, root_recording_id)
       end
 
       def count_rows(table_name, column)

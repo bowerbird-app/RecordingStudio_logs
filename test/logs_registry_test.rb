@@ -9,10 +9,12 @@ class LogsRegistryTest < Minitest::Test
 
   class PressKitSummary
     def self.logs_fixture? = true
+    def self.table_exists? = false
   end
 
   class PressCenterSummary
     def self.logs_fixture? = true
+    def self.table_exists? = false
   end
 
   class DownloadLog
@@ -21,6 +23,7 @@ class LogsRegistryTest < Minitest::Test
 
   class DownloadSummary
     def self.logs_fixture? = true
+    def self.table_exists? = false
   end
 
   def setup
@@ -115,6 +118,65 @@ class LogsRegistryTest < Minitest::Test
       )
     end
     assert_includes error.message, "time dimension"
+  end
+
+  def test_period_and_every_default_to_one_utc_day
+    register_views
+    register_press_kit
+    definition = RecordingStudioLogs.aggregations.first
+
+    assert_equal :day, definition.period.kind
+    assert_equal 1, definition.every
+    assert_equal :day, definition.period_column
+    assert_equal :scheduled, definition.count
+    assert_equal 0, definition.count_after.to_i
+    refute definition.include_current
+    assert_equal :daily, definition.interval
+  end
+
+  def test_interval_daily_still_registers
+    register_views
+    RecordingStudioLogs.aggregate(
+      source: ViewLog, name: "presskits/press_kit_views", summary_model: PressKitSummary,
+      interval: :daily, measurements: { views: :count }
+    )
+
+    assert_equal :day, RecordingStudioLogs.aggregations.first.period.kind
+  end
+
+  def test_hourly_every_five_is_accepted
+    register_views
+    RecordingStudioLogs.aggregate(
+      source: ViewLog, name: "presskits/press_kit_views", summary_model: PressKitSummary,
+      period: :hour, every: 5, measurements: { views: :count }
+    )
+    definition = RecordingStudioLogs.aggregations.first
+
+    assert_equal :hour, definition.period.kind
+    assert_equal 5, definition.every
+  end
+
+  def test_unknown_period_is_rejected
+    register_views
+
+    assert_raises(RecordingStudioLogs::InvalidRegistration) do
+      RecordingStudioLogs.aggregate(
+        source: ViewLog, name: "presskits/press_kit_views", summary_model: PressKitSummary,
+        period: :year, measurements: { views: :count }
+      )
+    end
+  end
+
+  def test_interval_daily_cannot_combine_with_hour
+    register_views
+
+    error = assert_raises(RecordingStudioLogs::InvalidRegistration) do
+      RecordingStudioLogs.aggregate(
+        source: ViewLog, name: "presskits/press_kit_views", summary_model: PressKitSummary,
+        interval: :daily, period: :hour, measurements: { views: :count }
+      )
+    end
+    assert_includes error.message, "cannot combine"
   end
 
   def test_hourly_interval_is_rejected

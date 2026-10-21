@@ -1,8 +1,8 @@
 # Adopting RecordingStudioLogs
 
-This gem is the shared partition, retention, and daily-summary path. Each producing gem still owns its table and its insert path. Do not move those rows into recordings, and do not merge unrelated logs into one site-view table.
+This gem is the shared partition, retention, and summary path. Each producing gem still owns its table and its insert path. Do not move those rows into recordings, and do not merge unrelated logs into one site-view table.
 
-v1 is daily only. A day is a UTC half-open window. NULL group columns stay as their own group. Rebuilding a day replaces that day's summary rows. Semantics, including cancellation, live in [Log semantics](semantics.md). Existing tables move with [Copy and switch a live log table](cutover.md). The dummy app proves that path on a Downloadable-shaped table. It does not change Downloadable itself.
+The default bucket is one UTC day. You can also register hour, week, or month periods on `aggregate`. NULL group columns stay as their own group. Rebuilding a period replaces that period's summary rows. Semantics, including cancellation, live in [Log semantics](semantics.md). Existing tables move with [Copy and switch a live log table](cutover.md). The dummy app proves that path on a Downloadable-shaped table. It does not change Downloadable itself.
 
 Work each target in order. Do not register a second writer until the old one is gone.
 
@@ -68,7 +68,7 @@ Walk through the dummy in [Site views, press kits, and press centers](guides/sit
 ## What stays out
 
 - No second metrics engine. Logs writes summary tables. Metrics queries them when it is installed. Only `count` and `sum` become timeseries. Do not extend Metrics from this gem.
-- No hourly, distinct, or correction rollups.
+- No distinct or correction rollups. Hour, week, and month buckets are options on `aggregate`.
 - No per-customer retention inside one table. One policy per table, overridable in host config.
 - No raw log rows on admin screens.
 - No automatic delete when a subscription is cancelled. The host calls `delete_for_root`.

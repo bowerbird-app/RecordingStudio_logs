@@ -56,11 +56,21 @@ module RecordingStudioLogs
     end
 
     def install_aggregation_runs!(connection)
-      return if connection.table_exists?(:recording_studio_logs_aggregation_runs)
+      table = :recording_studio_logs_aggregation_runs
+      unless connection.table_exists?(table)
+        connection.create_table(table, id: :uuid) { |definition| aggregation_columns(definition) }
+        connection.add_index table, %i[aggregation_name period_start],
+                             unique: true, name: "index_rs_logs_aggregation_runs_on_name_and_period"
+      end
+      upgrade_aggregation_runs!(connection)
+    end
 
-      connection.create_table(:recording_studio_logs_aggregation_runs, id: :uuid) { |table| aggregation_columns(table) }
-      connection.add_index :recording_studio_logs_aggregation_runs, %i[aggregation_name day],
-                           unique: true, name: "index_rs_logs_aggregation_runs_on_name_and_day"
+    def upgrade_aggregation_runs!(connection = ActiveRecord::Base.connection)
+      AggregationRunsUpgrade.upgrade!(connection)
+    end
+
+    def downgrade_aggregation_runs!(connection = ActiveRecord::Base.connection)
+      AggregationRunsUpgrade.downgrade!(connection)
     end
 
     def install_maintenance_runs!(connection)
@@ -73,7 +83,7 @@ module RecordingStudioLogs
 
     def aggregation_columns(table)
       table.string :aggregation_name, null: false
-      table.date :day, null: false
+      table.datetime :period_start, null: false
       table.string :status, null: false
       table.text :error_message
       table.datetime :finished_at

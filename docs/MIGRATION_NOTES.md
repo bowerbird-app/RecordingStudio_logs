@@ -9,7 +9,7 @@ bin/rails generate recording_studio_logs:migrations
 bin/rails db:migrate
 ```
 
-That creates `recording_studio_logs_aggregation_runs` and `recording_studio_logs_maintenance_runs`. Producing gems ship the log table. Consuming gems ship the summary table. Initializers do not create those tables.
+That creates `recording_studio_logs_aggregation_runs` and `recording_studio_logs_maintenance_runs`. The create migration still stores `day`. From 0.6.0, `RenameAggregationRunDayToPeriodStart` copies it to `period_start`; running that upgrade twice is a no-op. The run identity is `(aggregation_name, period_start)`. Producing gems ship the log table. Consuming gems ship the summary table. Initializers do not create those tables.
 
 ## Existing production tables
 
@@ -25,7 +25,7 @@ add_column :your_logs, :arrived_at, :datetime, null: false, default: -> { "CURRE
 
 ## UTC days
 
-A summary day is a UTC half-open window: from midnight UTC inclusive to the next midnight exclusive. Jobs and retention use that same day. Do not also group by the timestamp column.
+A default summary day is a UTC half-open window: from midnight UTC inclusive to the next midnight exclusive. Hour, week, and month periods use the same half-open rule on their period start. Jobs and retention use that same start. Do not also group by the timestamp column.
 
 ## PostgreSQL 15 or newer
 

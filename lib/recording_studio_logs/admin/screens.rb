@@ -17,7 +17,7 @@ module RecordingStudioLogs
     StuckSummariesWidget = RecordingStudioAdmin::Widget.new("widgets.logs.stuck_summaries") do
       type :number
       title "Summaries stuck"
-      info "A daily summary failed or its table is not ready."
+      info "A summary failed or its table is not ready."
       value { Catalog.stuck_count }
       link_to { |context| Status.needs_attention_path(context, "summaries") }
     end
@@ -25,7 +25,7 @@ module RecordingStudioLogs
     class LogsSection < RecordingStudioAdmin::Section
       key "logs"
       title "Logs"
-      subtitle "Month tables and daily summaries"
+      subtitle "Month tables and summaries"
 
       link :health, text: "Log health", url: ->(context) { context.admin_screen_path("log_health") }
       link :summaries, text: "Summaries", url: ->(context) { context.admin_screen_path("summaries") }
@@ -85,7 +85,7 @@ module RecordingStudioLogs
         column :owner, title: "From", sortable: false
         column :grouping, sortable: false
         column :measurements, sortable: false
-        column :last_success, title: "Last good day", sortable: false
+        column :last_success, title: "Last good run", sortable: false
         column :status, sortable: false, display: :badge, display_options: STATUS_BADGE
         action :open, text: "Open", url: lambda { |row, context|
           "#{context.admin_screen_path('summary_detail')}?aggregation=#{row.key}"
@@ -96,11 +96,11 @@ module RecordingStudioLogs
     class SummaryDetailScreen < RecordingStudioAdmin::Screen
       key "summary_detail"
       title "One summary"
-      subtitle "Recent days, including failures"
+      subtitle "Recent runs, including failures"
       query { |context| Catalog.runs_for(context.params[:aggregation] || context.params["aggregation"]) }
 
       table do
-        column :day, sortable: false
+        column :period_start, title: "Period", sortable: false
         column :status, sortable: false, display: :badge, display_options: STATUS_BADGE
         column :finished_at, title: "Finished", sortable: false
         column :error_message, title: "Error", sortable: false

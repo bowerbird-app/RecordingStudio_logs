@@ -10,21 +10,20 @@ module RecordingStudioLogs
       end
 
       def initialize(dry_run, connection, now)
-        @dry_run = dry_run
-        @connection = connection
-        @now = now
-        @dropped = []
-        @blocked = []
+        @context = CleanerContext.new(dry_run, connection, now)
       end
 
       def call
         RecordingStudioLogs.registry.logs.select(&:loaded?).each { |log| clean(log) }
-        CleanupReport.new(dropped: dropped, blocked: blocked, dry_run: dry_run)
+        CleanupReport.new(dropped: context.dropped, blocked: context.blocked, dry_run: context.dry_run)
       end
 
       private
 
-      attr_reader :dry_run, :connection, :now, :dropped, :blocked
+      attr_reader :context
+
+      delegate :dry_run, :connection, :now, :dropped, :blocked, :cutoff, :covering_closed?,
+               :lock_names_for_range, to: :context
 
       def clean(log)
         return if log.indefinite?
@@ -41,95 +40,51 @@ module RecordingStudioLogs
       end
 
       def release_partition(log, partition)
-        days = days_for(partition)
-        release(log, partition.name, days, -> { RawRows.newest(connection, log, partition.lower, partition.upper) }) do
+        stamp = -> { RawRows.newest(connection, log, partition.lower, partition.upper) }
+        release(log, partition.name, partition.lower, partition.upper, stamp) do
           Partitioning::Catalog.drop(partition.name, connection)
         end
       end
 
       def delete_rows(log)
-        covered, waiting = fresh_days(log)
-        blocked << log.table_name if waiting.any?
-        return if covered.empty?
+        return DayCleaner.new(context).delete_rows(log) if calendar_only?(log)
 
-        release_rows(log, covered)
+        WindowCleaner.new(context).delete_rows(log)
       end
 
-      def release_rows(log, covered)
-        return dropped << log.table_name if dry_run
-
-        lock_row_delete(log, covered)
+      def calendar_only?(log)
+        definitions = RecordingStudioLogs.registry.aggregations_for(log)
+        definitions.any? && definitions.all?(&:calendar_day?)
       end
 
-      def lock_row_delete(log, covered)
-        Lock.with(connection, *lock_names(log, covered)) do
-          Lock.hold_writes(connection, log.table_name)
-          delete_fresh_days(log, covered)
-        end
-      end
-
-      def delete_fresh_days(log, covered)
-        current = fresh_days(log).first & covered
-        return blocked << log.table_name if current.empty?
-
-        RawRows.delete_days(connection, log, cutoff(log), current)
-        dropped << log.table_name
-      end
-
-      def fresh_days(log)
-        RawRows.expired_days(connection, log, cutoff(log)).partition { |day| day_fresh?(log, day) }
-      end
-
-      def day_fresh?(log, day)
-        fresh?(log, [day], RawRows.newest_for_days(connection, log, cutoff(log), [day]))
-      end
-
-      def release(log, label, days, stamp, &)
-        return blocked << label unless fresh?(log, days, stamp.call)
+      def release(log, label, lower, upper, stamp, &)
+        return blocked << label unless range_ready?(log, lower, upper, stamp.call)
         return dropped << label if dry_run
 
-        drop_locked(log, label, days, stamp, &)
+        drop_locked(log, label, lower, upper, stamp, &)
       end
 
-      def drop_locked(log, label, days, stamp, &)
-        Lock.with(connection, *lock_names(log, days)) do
-          finish_drop(log, label, days, stamp, &)
+      def drop_locked(log, label, lower, upper, stamp, &)
+        Lock.with(connection, *lock_names_for_range(log, lower, upper)) do
+          finish_drop(log, label, lower, upper, stamp, &)
         end
       end
 
-      def finish_drop(log, label, days, stamp)
+      def finish_drop(log, label, lower, upper, stamp)
         Lock.hold_writes(connection, log.table_name)
-        return blocked << label unless fresh?(log, days, stamp.call)
+        return blocked << label unless range_ready?(log, lower, upper, stamp.call)
 
         yield
         dropped << label
       end
 
-      def fresh?(log, days, watermark)
-        AggregationRun.log_fresh?(log, days, watermark, connection: connection)
-      end
-
-      def lock_names(log, days)
-        Lock.names_for(RecordingStudioLogs.registry.aggregations_for(log), days)
+      def range_ready?(log, lower, upper, watermark)
+        covering_closed?(log, lower, upper) &&
+          AggregationRun.range_fresh?(log, lower, upper, watermark, connection: connection)
       end
 
       def expired_partition?(log, partition)
         partition.upper.present? && partition.upper <= cutoff(log)
-      end
-
-      def cutoff(log)
-        now - log.retention
-      end
-
-      def days_for(partition)
-        date = partition.lower.utc.to_date
-        finish = partition.upper.utc.to_date
-        days = []
-        while date < finish
-          days << date
-          date += 1
-        end
-        days
       end
     end
   end

@@ -10,12 +10,17 @@ module RecordingStudioLogs
       end
 
       def days_for(connection, table_name, time_column, root_column, root_recording_id)
+        times_for(connection, table_name, time_column, root_column, root_recording_id)
+          .map { |time| time.utc.to_date }.uniq
+      end
+
+      def times_for(connection, table_name, time_column, root_column, root_recording_id)
         time = connection.quote_column_name(time_column)
         sql = <<~SQL.squish
-          SELECT DISTINCT #{time}::date FROM #{quoted(connection, table_name)}
+          SELECT DISTINCT date_trunc('hour', #{time}) FROM #{quoted(connection, table_name)}
           WHERE #{match(connection, root_column, root_recording_id)}
         SQL
-        connection.select_values(sql).map(&:to_date)
+        connection.select_values(sql).filter_map { |value| coerce_time(value) }
       end
 
       def count(connection, table_name, column, root_recording_id)
@@ -40,6 +45,22 @@ module RecordingStudioLogs
         sql = "SELECT DISTINCT #{utc_day(time)} FROM #{quoted_table(connection, log)} " \
               "WHERE #{time} < #{connection.quote(cutoff)}"
         connection.select_values(sql).map(&:to_date)
+      end
+
+      def newest_before(connection, log, cutoff, lower, upper)
+        WindowRows.newest_before(connection, log, cutoff, lower, upper)
+      end
+
+      def expired_bounds(connection, log, cutoff)
+        WindowRows.expired_bounds(connection, log, cutoff)
+      end
+
+      def delete_windows(connection, log, cutoff, windows)
+        WindowRows.delete_windows(connection, log, cutoff, windows)
+      end
+
+      def max_in_window(scope)
+        WindowRows.max(scope)
       end
 
       def newest_for_days(connection, log, cutoff, days)

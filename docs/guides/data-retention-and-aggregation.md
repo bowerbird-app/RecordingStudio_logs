@@ -68,7 +68,7 @@ RecordingStudioLogs.configure do |config|
 end
 ```
 
-`months_ahead` (default `2`) is the partition maintenance window. `reconciliation_days` (default `3`) is how many UTC days before today `ReconciliationJob` rebuilds. `retention_for` wins over the gem’s `retention:` (`LogRegistration#retention`). v1 is one policy per table.
+`months_ahead` (default `2`) is the partition maintenance window. `reconciliation_days` (default `3`) is how many periods before now `ReconciliationJob` rebuilds. Daily aggregations still treat that integer as days. `retention_for` wins over the gem’s `retention:` (`LogRegistration#retention`). v1 is one policy per table.
 
 ### `RecordingStudioLogs.aggregate`
 
@@ -80,9 +80,15 @@ Implemented in `AggregationDefinition` (`lib/recording_studio_logs/aggregation_d
 | `name` | required | `owner/purpose`, matching `\A[a-z0-9_]+/[a-z0-9_]+\z`. |
 | `summary_model` | required | Summary ActiveRecord model (class or string). |
 | `filter` | `{}` | Equality on columns the producer declared as `filter: [:eq]`. |
-| `group_by` | `[]` | Columns the producer declared `group: true`. Do not include the timestamp; day is already the time dimension. |
+| `group_by` | `[]` | Columns the producer declared `group: true`. Do not include the timestamp; the period is already the time dimension. |
 | `measurements` | `{}` | At least one. `:count` or `{ operation: :column }` for `:sum`, `:average`, `:minimum`, `:maximum`. |
-| `interval` | `:daily` | Only `:daily` is accepted. Hourly is rejected. |
+| `period` | `:day` | `:hour`, `:day`, `:week`, or `:month`. Hours, days, and weeks count from a fixed UTC epoch. Weeks start on Monday. Months align to January. |
+| `every` | `1` | Positive integer. `period: :day, every: 1` is the default bucket. |
+| `period_column` | `:day` | Summary column that stores the period start. The default is a date, so existing daily tables stay as they are. Hour periods need a datetime column. |
+| `count` | `:scheduled` | `:scheduled`, `:sync`, or `:async`. Sync rebuilds that row's period after a model save. Async enqueues `AggregatePeriodJob` and collapses duplicate enqueues with the run row. Both rebuild the whole period. `insert_all` skips the hooks. |
+| `count_after` | `0` | Wait after a period ends before the scheduled path counts it. |
+| `include_current` | `false` | Also refresh the open period. |
+| `interval` | unset | `interval: :daily` still means `period: :day`. Other intervals are rejected; use `period:` instead. |
 | `owner` | first segment of `name` | Same replace/reject-other-owner rule as logs. |
 
 `dormant?` is true when the source class, the summary class, or the registered log is missing (`source_model.nil? || summary_model.nil? || log.nil?`). There is no disabled flag.
@@ -94,7 +100,7 @@ Implemented in `AggregationDefinition` (`lib/recording_studio_logs/aggregation_d
 
 The scheduler skips dormant definitions (`Aggregation::Scheduler#runnable`). A missing **table** is not dormant: `summary_ready?` is false when the class loads but `table_exists?` is false.
 
-The summary table is a normal migration. It needs `id`, `day`, the group columns, one integer or numeric column per measurement, and timestamps. Unique-index **day plus every `group_by` column** with `nulls_not_distinct: true`. `Schema.summary_index` builds that index. Initializers do not create tables.
+The summary table is a normal migration. It needs `id`, the period column (default `day`), the group columns, one integer or numeric column per measurement, and timestamps. Unique-index **the period column plus every `group_by` column** with `nulls_not_distinct: true`. `Schema.summary_index` builds that index. Initializers do not create tables.
 
 On the raw log, call `Schema.root_and_time_index` when lookups are by root and time. Call `RecordingStudioLogs.finalize!` at the end of the initializer that registers logs.
 
@@ -102,11 +108,11 @@ On the raw log, call `Schema.root_and_time_index` when lookups are by root and t
 
 `RetentionCleanupJob` calls `cleanup_retention!` (`Retention::Cleaner`). Finite retention is the only path that tries to drop months or delete rows. `:indefinite` returns immediately for that log. Schedule cleanup **after** aggregation ([Schedule log jobs](scheduling.md)).
 
-A day (or a whole month, for a partitioned table) is **fresh** only when every aggregation registered on that log has a `succeeded` run for every UTC day in the window, and each of those successes finished at or after the newest arrival in that window (`AggregationRun.log_fresh?` in `lib/recording_studio_logs/aggregation_run.rb`). Arrival is the max of the event-time column, `arrived_at` if that column exists, **and** `created_at` if that column exists (`Retention::RawRows.stamp_columns`). See the README section “Retention and owner deletion.”
+A period (or a whole month, for a partitioned table) is **fresh** only when every aggregation registered on that log has a `succeeded` run for every covering period in the window, each of those periods is closed, and each success finished at or after the newest arrival in that window (`AggregationRun.range_fresh?` / `AggregationRun.fresh?` in `lib/recording_studio_logs/aggregation_run.rb`). Arrival is the max of the event-time column, `arrived_at` if that column exists, **and** `created_at` if that column exists (`Retention::RawRows.stamp_columns`). See the README section “Retention and owner deletion.”
 
 Consequences that follow from that check, not from extra flags:
 
-- **Cleanup only deletes days that have been aggregated.** Non-partitioned cleanup splits expired days into fresh vs waiting and deletes only the fresh set (`Cleaner#delete_rows`). A partitioned month drops only when the whole month is older than the cutoff **and** every calendar day in it is fresh (`Cleaner#release`, `Cleaner#days_for`). Empty UTC days still need a `succeeded` run, or the month stays in Cleanup waiting.
+- **Cleanup only deletes rows whose covering period is closed and counted.** Daily aggregations still delete by UTC day (`Retention::DayCleaner#delete_rows`). Other periods wait until every overlapping period has closed and succeeded (`Retention::WindowCleaner#delete_rows`). `Cleaner#delete_rows` hands off to them. A partitioned month drops only when the whole month is older than the cutoff **and** every covering period is closed and fresh (`Cleaner#release`). An open hour (or any still-open period) keeps the rows. Empty covering periods still need a `succeeded` run, or the month stays in Cleanup waiting.
 - **A log with no aggregation is never cleaned by this gem.** `log_fresh?` returns `false` when the aggregation list is empty. Expired rows stay. That is why a contractual log with no summary uses `:indefinite`. Logs does not require the producing gem to ship its own pruner. A gem **may** keep one (for example `RecordingStudio_embeddable` still prunes view rows after 90 days); Downloadable does not.
 - A consumer registered later, and a dormant consumer, also keep the month: they appear in `aggregations_for` but have no covering success (`test_a_dormant_consumer_keeps_the_month`, `test_a_consumer_registered_before_cleanup_keeps_the_month` in `test/logs_postgres_test.rb`).
 - Cleanup takes a lock, then re-reads the newest arrival, so a row that commits while it waits still keeps the window.
@@ -115,7 +121,7 @@ Consequences that follow from that check, not from extra flags:
 
 `RecordingStudioLogs.delete_for_root(root_recording_id:, dry_run: false)` (`Retention::OwnerDeletion`).
 
-It deletes matching raw rows on loaded logs that declared `root_column`, plus summary rows whose `group_by` includes that column. The raw delete is SQL (`Retention::RawRows.delete`), not ActiveRecord `destroy`. Summaries that omit the root are rebuilt for the affected UTC days so the deleted owner’s counts do not stay in the total. Those names are reported as `unscoped_aggregations`. Cancelling a subscription does not call this. The host decides.
+It deletes matching raw rows on loaded logs that declared `root_column`, plus summary rows whose `group_by` includes that column. The raw delete is SQL (`Retention::RawRows.delete`), not ActiveRecord `destroy`. Summaries that omit the root are rebuilt for the affected period starts so the deleted owner’s counts do not stay in the total. Those names are reported as `unscoped_aggregations`. Cancelling a subscription does not call this. The host decides.
 
 **One dormant consumer of any rooted log aborts the whole `delete_for_root`.** If any consumer of a rooted log is `dormant?`, `OwnerDeletion` returns an empty report and does not delete (`return report([]) if dormant_consumer?`). `test_a_dormant_consumer_blocks_owner_deletion` shows the raw rows and summaries still there. Passing `dry_run: true` still counts; the live call does not.
 
@@ -128,12 +134,14 @@ This gem ships ActiveJob classes. Every class uses `queue_as :default`. It does 
 | Job | Default work |
 |---|---|
 | `PartitionMaintenanceJob` | Previous month through `months_ahead`. |
-| `DailyAggregationJob` | Rebuilds yesterday UTC (`Time.now.utc.to_date - 1`) for every non-dormant aggregation. Missing-table aggregations still run and are recorded as `failed` (`NotReady`), not skipped. Pass a day to rebuild that day. |
-| `ReconciliationJob` | Rebuilds each UTC day from `today - reconciliation_days` through yesterday, so a late row is included. |
-| `BackfillJob` | `perform(aggregation_name, from, to)` — positional arguments. One aggregation, inclusive UTC date range. |
+| `DailyAggregationJob` | Rebuilds yesterday UTC (`Time.now.utc.to_date - 1`) for every ready **calendar-day** aggregation. It skips hour, week, and month aggregations. Missing-table daily aggregations still run and are recorded as `failed` (`NotReady`), not skipped. Pass a day to rebuild that day. |
+| `AggregationJob` | Rebuilds every aggregation whose period has closed, plus `count_after`, and the current period when `include_current` is set. Run this often if you use hour, week, or month buckets. |
+| `AggregatePeriodJob` | Rebuilds one period of one aggregation. Async `count:` enqueues it. |
+| `ReconciliationJob` | Rebuilds the last `reconciliation_days` periods before now, so a late row is included. Daily aggregations still treat that integer as days. `perform` takes no arguments; pass `now:` or `today:` to `RecordingStudioLogs.reconcile!`. |
+| `BackfillJob` | `perform(aggregation_name, from, to)` — positional arguments. One aggregation, inclusive range of period starts. |
 | `RetentionCleanupJob` | Runs `cleanup_retention!`. `perform(dry_run: true)` previews. |
 
-The same work is `maintain_partitions!`, `aggregate_day!`, `reconcile!`, `backfill!`, and `cleanup_retention!`.
+The same work is `maintain_partitions!`, `aggregate_day!`, `aggregate_due!`, `aggregate_period!`, `reconcile!(now:, today:)`, `backfill!`, and `cleanup_retention!`.
 
 ### Admin statuses: “Cleanup waiting” and “Missing table”
 
@@ -148,26 +156,26 @@ Other log badges: **Waiting** (model not loaded), **Missing month** (a month in 
 ## Checklist for an agent adding an aggregate table
 
 1. **Get the dimensions agreed first.** Write down `filter`, `group_by`, and `measurements`. If the list includes request fields “just in case,” go back. This is a product decision. Finite retention plus a summary only when the owner named both.
-2. **Add the migration, model, and `aggregate` call together.** Unique-index `day` plus every `group_by` column with `Schema.summary_index` (`nulls_not_distinct: true`). On the raw log, add `Schema.root_and_time_index` when lookups are by root and time. Call `finalize!` after registrations. A registration whose source or summary **class** cannot load is dormant. A missing **table** is not dormant. One dormant consumer of any rooted log aborts the whole `delete_for_root`.
-3. **Add a rebuild/backfill.** Use `BackfillJob.perform(aggregation_name, from, to)` or `RecordingStudioLogs.backfill!` for **every UTC day in the retained window, including empty days**. Dropping a partitioned month needs a `succeeded` run for every calendar day of that month. Daily jobs only cover yesterday plus the reconciliation window. Schedule `RetentionCleanupJob` after aggregation.
+2. **Add the migration, model, and `aggregate` call together.** Unique-index the period column (default `day`) plus every `group_by` column with `Schema.summary_index` (`nulls_not_distinct: true`). On the raw log, add `Schema.root_and_time_index` when lookups are by root and time. Call `finalize!` after registrations. A registration whose source or summary **class** cannot load is dormant. A missing **table** is not dormant. One dormant consumer of any rooted log aborts the whole `delete_for_root`.
+3. **Add a rebuild/backfill.** Use `BackfillJob.perform(aggregation_name, from, to)` or `RecordingStudioLogs.backfill!` for **every covering period in the retained window, including empty periods**. Dropping a partitioned month needs a `succeeded` run for every covering period of that month, and each of those periods must be closed. `DailyAggregationJob` only covers yesterday for calendar-day aggregations. Schedule `AggregationJob` for other periods, then `ReconciliationJob` for the last `reconciliation_days` periods. Schedule `RetentionCleanupJob` after aggregation.
 4. **Pick the retention.** No product decision, or contractual with no summary: leave `:indefinite` and skip `aggregate`. Finite duration plus a summary only when the owner named both (Views). Do not set a finite window on a log with no aggregations. Do not add a gem pruner unless that gem already owns one.
 5. **Write tests and an upgrade note.** Cover registration, a rebuild that does not double-count, retention or `:indefinite`, and `delete_for_root` if you declared `root_column`. Hosts need a note for the new migration and any job they must schedule.
 6. **Do not flip host defaults.** Leave `months_ahead` and `reconciliation_days` unless the host asked. Do not call `retention_for` from a gem to override another gem’s table.
 
 ## Do
 
-- Keep summaries per UTC day. The window is half-open, `[day, next day)` midnight UTC. Jobs, retention, and rebuilds use that same day.
+- Keep summaries per period. The window is half-open, `[start, finish)`. Default is one UTC day. Jobs, retention, and rebuilds use that same period start.
 - Keep the root column on the raw log, and include it in `group_by` when owner deletion should drop those summary rows.
 - Declare only columns other gems may actually filter, group, or measure (`filter`, `group`, `measurements`).
 - Ship one summary table per aggregation. Two consumers can read the same raw rows.
-- Rebuild a day with delete-and-insert so a retry does not double-count.
+- Rebuild a period with delete-and-insert so a retry does not double-count.
 
 ## Do not
 
-- **Do not leave an `aggregate` call without its model.** A missing class is dormant. Cleanup will not drop that log’s expired days. One dormant consumer of any rooted log makes `delete_for_root` a no-op. A loaded source and summary with no registered log fails `finalize!`.
+- **Do not leave an `aggregate` call without its model.** A missing class is dormant. Cleanup will not drop that log’s expired periods. One dormant consumer of any rooted log makes `delete_for_root` a no-op. A loaded source and summary with no registered log fails `finalize!`.
 - **Do not treat a missing table as dormant.** Raw owner-delete can start; an unscoped rebuild can raise `NotReady` and roll the transaction back. Daily jobs record those runs as `failed`.
-- **Do not set a finite retention on a log with no aggregation.** This gem will never mark those days fresh. Use `:indefinite`. Logs will not expire the rows. Owner deletion is `delete_for_root` from the host.
-- **Do not add a summary “just in case.”** Extra dimensions approach the raw table. Extra aggregations block cleanup until they succeed for every UTC day in the month, empty days included.
+- **Do not set a finite retention on a log with no aggregation.** This gem will never mark those periods fresh. Use `:indefinite`. Logs will not expire the rows. Owner deletion is `delete_for_root` from the host.
+- **Do not add a summary “just in case.”** Extra dimensions approach the raw table. Extra aggregations block cleanup until they succeed for every covering period in the month, empty periods included. Retention also waits for each of those periods to close.
 - **Do not drop or edit a shipped summary migration.** Stop using the aggregation instead: remove the `aggregate` call once hosts have moved, leave the table, and do not rewrite old `schema.rb` history.
 - Do not also `group_by` the timestamp.
 - Do not put IP address, user agent, session id, or visitor id in `group_by` to fake unique views. v1 has no distinct count.

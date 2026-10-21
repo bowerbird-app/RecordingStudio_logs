@@ -2,21 +2,25 @@
 
 module RecordingStudioLogs
   class AggregationDefinition
-    NAME_PATTERN = %r{\A[a-z0-9_]+/[a-z0-9_]+\z}
-    INTERVALS = %i[daily].freeze
+    include Aggregation::DefinitionPeriod
 
-    attr_reader :name, :source, :summary, :filter, :group_by, :measurements, :interval, :owner
+    NAME_PATTERN = %r{\A[a-z0-9_]+/[a-z0-9_]+\z}
+
+    attr_reader :name, :source, :summary, :filter, :group_by, :measurements, :owner, :period_options
+
+    delegate :period, :period_column, :count, :count_after, :include_current,
+             :calendar_day?, :live_count?, :scheduled_starts, :reconciliation_starts,
+             to: :period_options
 
     def initialize(source:, name:, summary_model:, filter: {}, group_by: [], measurements: {}, # rubocop:disable Metrics/ParameterLists
-                   interval: :daily, owner: nil)
+                   interval: nil, period: :day, every: 1, period_column: :day, count: :scheduled,
+                   count_after: 0, include_current: false, owner: nil)
       @source = ModelReference.new(source)
       @summary = ModelReference.new(summary_model)
-      @name = name.to_s
-      @filter = filter.symbolize_keys
-      @group_by = Array(group_by).map(&:to_sym)
-      @measurements = Measurement.parse(measurements)
-      @interval = interval.to_sym
-      @owner = owner.presence || @name.split("/").first
+      assign_shape(name, filter, group_by, measurements, owner)
+      @period_options = Aggregation::PeriodOptions.parse(
+        interval:, period:, every:, period_column:, count:, count_after:, include_current:
+      )
       validate_shape!
     end
 
@@ -41,6 +45,7 @@ module RecordingStudioLogs
 
       reject_timestamp_grouping!
       check_contract!
+      validate_period_column!
     end
 
     def rooted_group?
@@ -56,11 +61,15 @@ module RecordingStudioLogs
       name.tr("/", "_").to_sym
     end
 
-    def day_for(time)
-      time.utc.to_date
-    end
-
     private
+
+    def assign_shape(name, filter, group_by, measurements, owner)
+      @name = name.to_s
+      @filter = filter.symbolize_keys
+      @group_by = Array(group_by).map(&:to_sym)
+      @measurements = Measurement.parse(measurements)
+      @owner = owner.presence || @name.split("/").first
+    end
 
     def summary_table_ready?
       summary_model.table_exists?
@@ -73,7 +82,6 @@ module RecordingStudioLogs
         raise InvalidRegistration,
               "aggregation names look like presskits/press_kit_views"
       end
-      raise InvalidRegistration, "only daily aggregation is supported" unless INTERVALS.include?(interval)
       raise InvalidRegistration, "#{name} needs at least one measurement" if measurements.empty?
     end
 
@@ -86,7 +94,7 @@ module RecordingStudioLogs
     def reject_timestamp_grouping!
       return unless group_by.include?(log.timestamp_column)
 
-      raise InvalidRegistration, "day is already the time dimension"
+      raise InvalidRegistration, "the period is already the time dimension"
     end
 
     def check_measurement!(measurement)

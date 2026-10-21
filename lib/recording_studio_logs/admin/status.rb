@@ -36,7 +36,8 @@ module RecordingStudioLogs
       def last_success(definition)
         return unless runs_table?
 
-        AggregationRun.where(aggregation_name: definition.name, status: "succeeded").order(day: :desc).pick(:day)
+        AggregationRun.where(aggregation_name: definition.name, status: "succeeded")
+                      .order(period_start: :desc).pick(:period_start)
       end
 
       def range_label(partition)
