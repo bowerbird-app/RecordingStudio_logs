@@ -4,7 +4,7 @@ module RecordingStudioLogs
   module Retention
     CleanupReport = Data.define(:dropped, :blocked, :dry_run)
 
-    class Cleaner # rubocop:disable Metrics/ClassLength
+    class Cleaner
       def self.call(dry_run: false, connection: ActiveRecord::Base.connection, now: Time.now.utc)
         new(dry_run, connection, now).call
       end
@@ -22,9 +22,9 @@ module RecordingStudioLogs
         CleanupReport.new(dropped: dropped, blocked: blocked, dry_run: dry_run)
       end
 
-      private
-
       attr_reader :dry_run, :connection, :now, :dropped, :blocked
+
+      private
 
       def clean(log)
         return if log.indefinite?
@@ -62,67 +62,12 @@ module RecordingStudioLogs
       end
 
       def delete_window_rows(log)
-        windows, waiting = fresh_windows(log)
-        blocked << log.table_name if waiting
-        return if windows.empty?
-        return dropped << log.table_name if dry_run
-
-        lock_window_delete(log, windows)
-      end
-
-      def lock_window_delete(log, windows) # rubocop:disable Metrics/AbcSize
-        locks = windows.flat_map { |lower, upper| lock_names_for_range(log, lower, upper) }
-        Lock.with(connection, *locks) do
-          Lock.hold_writes(connection, log.table_name)
-          current, = fresh_windows(log)
-          current = current.select { |window| windows.include?(window) }
-          return blocked << log.table_name if current.empty?
-
-          RawRows.delete_windows(connection, log, cutoff(log), current)
-          dropped << log.table_name
-        end
+        WindowCleaner.new(self).delete_rows(log)
       end
 
       def calendar_only?(log)
         definitions = RecordingStudioLogs.registry.aggregations_for(log)
         definitions.any? && definitions.all?(&:calendar_day?)
-      end
-
-      def fresh_windows(log) # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
-        definitions = RecordingStudioLogs.registry.aggregations_for(log)
-        return [[], true] if definitions.empty?
-
-        bounds = RawRows.expired_bounds(connection, log, cutoff(log))
-        return [[], false] if bounds.nil?
-
-        windows = nil
-        waiting = false
-        definitions.each do |definition|
-          starts = definition.period.starts_overlapping(bounds[0], bounds[1] + 1.second)
-          ok, rest = starts.partition { |start| period_ready?(log, definition, start) }
-          waiting ||= rest.any?
-          owned = ok.map { |start| definition.period.window(start) }
-          windows = windows.nil? ? owned : intersect_windows(windows, owned)
-        end
-        [windows || [], waiting]
-      end
-
-      def period_ready?(log, definition, start)
-        return false unless definition.period.closed?(start, now)
-
-        lower, upper = definition.period.window(start)
-        watermark = RawRows.newest_before(connection, log, cutoff(log), lower, upper)
-        AggregationRun.fresh?(definition.name, [start], watermark, connection: connection)
-      end
-
-      def intersect_windows(left, right)
-        left.each_with_object([]) do |(left_start, left_end), result|
-          right.each do |right_start, right_end|
-            lower = [left_start, right_start].max
-            upper = [left_end, right_end].min
-            result << [lower, upper] if lower < upper
-          end
-        end
       end
 
       def release_rows(log, covered)

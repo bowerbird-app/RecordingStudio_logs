@@ -2,7 +2,7 @@
 
 module RecordingStudioLogs
   module Retention
-    module RawRows # rubocop:disable Metrics/ModuleLength
+    module RawRows
       module_function
 
       def newest(connection, log, lower, upper)
@@ -48,38 +48,19 @@ module RecordingStudioLogs
       end
 
       def newest_before(connection, log, cutoff, lower, upper)
-        stamp_columns(log).filter_map { |column| max_in_window(connection, log, column, cutoff, lower, upper) }.max
+        WindowRows.newest_before(connection, log, cutoff, lower, upper)
       end
 
       def expired_bounds(connection, log, cutoff)
-        time = connection.quote_column_name(log.timestamp_column)
-        sql = "SELECT MIN(#{time}), MAX(#{time}) FROM #{quoted_table(connection, log)} " \
-              "WHERE #{time} < #{connection.quote(cutoff)}"
-        row = connection.select_rows(sql).first
-        return if row.blank? || row[0].blank?
-
-        [coerce_time(row[0]), coerce_time(row[1])]
+        WindowRows.expired_bounds(connection, log, cutoff)
       end
 
       def delete_windows(connection, log, cutoff, windows)
-        return if windows.blank?
-
-        time = connection.quote_column_name(log.timestamp_column)
-        clauses = windows.map do |lower, upper|
-          "(#{time} >= #{connection.quote(lower)} AND #{time} < #{connection.quote(upper)})"
-        end
-        sql = "DELETE FROM #{quoted_table(connection, log)} WHERE #{time} < #{connection.quote(cutoff)} " \
-              "AND (#{clauses.join(' OR ')})"
-        connection.execute(sql)
+        WindowRows.delete_windows(connection, log, cutoff, windows)
       end
 
-      def max_in_window(connection, log, column, cutoff, lower, upper) # rubocop:disable Metrics/ParameterLists
-        time = connection.quote_column_name(log.timestamp_column)
-        quoted = connection.quote_column_name(column)
-        sql = "SELECT MAX(#{quoted}) FROM #{quoted_table(connection, log)} " \
-              "WHERE #{time} < #{connection.quote(cutoff)} AND #{time} >= #{connection.quote(lower)} " \
-              "AND #{time} < #{connection.quote(upper)}"
-        coerce_time(connection.select_value(sql))
+      def max_in_window(connection, log, column, cutoff, lower, upper)
+        WindowRows.max(WindowScope.new(connection, log, column, cutoff, lower, upper))
       end
 
       def newest_for_days(connection, log, cutoff, days)

@@ -2,7 +2,7 @@
 
 module RecordingStudioLogs
   # Helpers for partitioned log tables and the summary uniqueness index.
-  module Schema # rubocop:disable Metrics/ModuleLength
+  module Schema
     module_function
 
     def partitioned_log(table_name, timestamp_column:, connection: ActiveRecord::Base.connection)
@@ -65,40 +65,12 @@ module RecordingStudioLogs
       upgrade_aggregation_runs!(connection)
     end
 
-    def upgrade_aggregation_runs!(connection = ActiveRecord::Base.connection) # rubocop:disable Metrics/MethodLength
-      table = :recording_studio_logs_aggregation_runs
-      return unless connection.table_exists?(table)
-      return if connection.column_exists?(table, :period_start)
-      return unless connection.column_exists?(table, :day)
-
-      connection.add_column table, :period_start, :datetime
-      quoted = connection.quote_table_name(table)
-      connection.execute("UPDATE #{quoted} SET period_start = (day::timestamp AT TIME ZONE 'UTC')")
-      connection.change_column_null table, :period_start, false
-      if connection.index_name_exists?(table, "index_rs_logs_aggregation_runs_on_name_and_day")
-        connection.remove_index table, name: "index_rs_logs_aggregation_runs_on_name_and_day"
-      end
-      connection.remove_column table, :day
-      connection.add_index table, %i[aggregation_name period_start],
-                           unique: true, name: "index_rs_logs_aggregation_runs_on_name_and_period"
+    def upgrade_aggregation_runs!(connection = ActiveRecord::Base.connection)
+      AggregationRunsUpgrade.upgrade!(connection)
     end
 
-    def downgrade_aggregation_runs!(connection = ActiveRecord::Base.connection) # rubocop:disable Metrics/MethodLength
-      table = :recording_studio_logs_aggregation_runs
-      return unless connection.table_exists?(table)
-      return unless connection.column_exists?(table, :period_start)
-      return if connection.column_exists?(table, :day)
-
-      connection.add_column table, :day, :date
-      quoted = connection.quote_table_name(table)
-      connection.execute("UPDATE #{quoted} SET day = (period_start AT TIME ZONE 'UTC')::date")
-      connection.change_column_null table, :day, false
-      if connection.index_name_exists?(table, "index_rs_logs_aggregation_runs_on_name_and_period")
-        connection.remove_index table, name: "index_rs_logs_aggregation_runs_on_name_and_period"
-      end
-      connection.remove_column table, :period_start
-      connection.add_index table, %i[aggregation_name day],
-                           unique: true, name: "index_rs_logs_aggregation_runs_on_name_and_day"
+    def downgrade_aggregation_runs!(connection = ActiveRecord::Base.connection)
+      AggregationRunsUpgrade.downgrade!(connection)
     end
 
     def install_maintenance_runs!(connection)
