@@ -1,14 +1,12 @@
 # frozen_string_literal: true
 
 module RecordingStudioLogs
-  class AggregationDefinition # rubocop:disable Metrics/ClassLength
+  class AggregationDefinition
     NAME_PATTERN = %r{\A[a-z0-9_]+/[a-z0-9_]+\z}
-    COUNTS = %i[scheduled sync async].freeze
 
-    attr_reader :name, :source, :summary, :filter, :group_by, :measurements, :owner,
-                :period, :period_column, :count, :count_after, :include_current
+    attr_reader :name, :source, :summary, :filter, :group_by, :measurements, :owner, :period_options
 
-    def initialize(source:, name:, summary_model:, filter: {}, group_by: [], measurements: {}, # rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Metrics/ParameterLists
+    def initialize(source:, name:, summary_model:, filter: {}, group_by: [], measurements: {}, # rubocop:disable Metrics/ParameterLists
                    interval: nil, period: :day, every: 1, period_column: :day, count: :scheduled,
                    count_after: 0, include_current: false, owner: nil)
       @source = ModelReference.new(source)
@@ -17,11 +15,9 @@ module RecordingStudioLogs
       @filter = filter.symbolize_keys
       @group_by = Array(group_by).map(&:to_sym)
       @measurements = Measurement.parse(measurements)
-      @period = Aggregation::Period.new(*coerce_period(interval, period, every))
-      @period_column = period_column.to_sym
-      @count = count.to_sym
-      @count_after = normalize_wait(count_after)
-      @include_current = include_current
+      @period_options = Aggregation::PeriodOptions.parse(
+        interval:, period:, every:, period_column:, count:, count_after:, include_current:
+      )
       @owner = owner.presence || @name.split("/").first
       validate_shape!
     end
@@ -63,6 +59,26 @@ module RecordingStudioLogs
       name.tr("/", "_").to_sym
     end
 
+    def period
+      period_options.period
+    end
+
+    def period_column
+      period_options.period_column
+    end
+
+    def count
+      period_options.count
+    end
+
+    def count_after
+      period_options.count_after
+    end
+
+    def include_current
+      period_options.include_current
+    end
+
     def interval
       calendar_day? ? :daily : period.kind
     end
@@ -72,11 +88,11 @@ module RecordingStudioLogs
     end
 
     def calendar_day?
-      period.kind == :day && period.every == 1 && period_column == :day
+      period_options.calendar_day?
     end
 
     def live_count?
-      count != :scheduled
+      period_options.live_count?
     end
 
     def day_for(time)
@@ -88,31 +104,15 @@ module RecordingStudioLogs
     end
 
     def summary_period_key(period_start)
-      return period_start.to_date if summary_period_is_date?
-
-      period_start
+      period_options.summary_period_key(period_start, date_column: summary_period_is_date?)
     end
 
     def scheduled_starts(now)
-      now = now.to_time.utc
-      current = period.start_for(now)
-      closed = period.previous(current)
-      starts = []
-      starts << closed if now >= period.finish(closed) + count_after
-      starts << current if include_current
-      starts.uniq
+      period_options.scheduled_starts(now)
     end
 
     def reconciliation_starts(now)
-      current = period.start_for(now)
-      count = RecordingStudioLogs.configuration.reconciliation_days
-      starts = []
-      cursor = period.previous(current)
-      count.times do
-        starts << cursor
-        cursor = period.previous(cursor)
-      end
-      starts
+      period_options.reconciliation_starts(now)
     end
 
     def count_period(period_start)
@@ -140,36 +140,12 @@ module RecordingStudioLogs
       false
     end
 
-    def coerce_period(interval, period, every)
-      period = (period || :day).to_sym
-      if interval
-        unless interval.to_sym == :daily
-          raise InvalidRegistration, "only daily interval is supported; use period: :hour"
-        end
-        raise InvalidRegistration, "interval: :daily cannot combine with period: #{period}" unless period == :day
-      end
-      [period, every]
-    end
-
-    def normalize_wait(value)
-      duration = value.is_a?(Numeric) ? value.seconds : value
-      unless duration.respond_to?(:to_i) && duration.to_i >= 0
-        raise InvalidRegistration, "count_after must be a duration of zero or more"
-      end
-
-      duration
-    end
-
     def validate_shape!
       unless NAME_PATTERN.match?(name)
         raise InvalidRegistration,
               "aggregation names look like presskits/press_kit_views"
       end
       raise InvalidRegistration, "#{name} needs at least one measurement" if measurements.empty?
-      raise InvalidRegistration, "count must be :scheduled, :sync, or :async" unless COUNTS.include?(count)
-      return if [true, false].include?(include_current)
-
-      raise InvalidRegistration, "include_current must be true or false"
     end
 
     def check_contract!
@@ -191,13 +167,7 @@ module RecordingStudioLogs
     end
 
     def validate_period_column!
-      return unless summary_ready?
-
-      column = summary_model.columns_hash[period_column.to_s]
-      raise InvalidRegistration, "#{name} summary needs #{period_column}" if column.nil?
-      return unless period.kind == :hour && column.type == :date
-
-      raise InvalidRegistration, "hour periods need a datetime #{period_column} column"
+      period_options.validate_column!(self)
     end
 
     def summary_period_is_date?
