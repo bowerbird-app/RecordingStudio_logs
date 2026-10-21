@@ -137,7 +137,7 @@ This gem ships ActiveJob classes. Every class uses `queue_as :default`. It does 
 | `DailyAggregationJob` | Rebuilds yesterday UTC (`Time.now.utc.to_date - 1`) for every ready **calendar-day** aggregation. It skips hour, week, and month aggregations. Missing-table daily aggregations still run and are recorded as `failed` (`NotReady`), not skipped. Pass a day to rebuild that day. |
 | `AggregationJob` | Rebuilds every aggregation whose period has closed, plus `count_after`, and the current period when `include_current` is set. Run this often if you use hour, week, or month buckets. |
 | `AggregatePeriodJob` | Rebuilds one period of one aggregation. Async `count:` enqueues it. |
-| `ReconciliationJob` | Rebuilds the last `reconciliation_days` periods before now, so a late row is included. Daily aggregations still treat that integer as days. Pass `now:` or `today:`. |
+| `ReconciliationJob` | Rebuilds the last `reconciliation_days` periods before now, so a late row is included. Daily aggregations still treat that integer as days. `perform` takes no arguments; pass `now:` or `today:` to `RecordingStudioLogs.reconcile!`. |
 | `BackfillJob` | `perform(aggregation_name, from, to)` — positional arguments. One aggregation, inclusive range of period starts. |
 | `RetentionCleanupJob` | Runs `cleanup_retention!`. `perform(dry_run: true)` previews. |
 

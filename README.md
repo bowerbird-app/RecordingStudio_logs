@@ -1,6 +1,6 @@
 # RecordingStudioLogs
 
-Shared PostgreSQL logging for Recording Studio gems. A producing gem stores high-volume rows in its own table. Other gems register daily summaries over the columns that producer allows. RecordingStudio_metrics stays the query API. This gem does not depend on it.
+Shared PostgreSQL logging for Recording Studio gems. A producing gem stores high-volume rows in its own table. Other gems register summaries over the columns that producer allows, with configurable periods (daily by default). RecordingStudio_metrics stays the query API. This gem does not depend on it.
 
 Logs are exhaust. They are not recordings, and they are not `log_event!` history.
 

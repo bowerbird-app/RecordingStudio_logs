@@ -43,7 +43,7 @@ module RecordingStudioLogs
 
       def copy_day_to_period_start(connection)
         quoted = connection.quote_table_name(TABLE)
-        connection.execute("UPDATE #{quoted} SET period_start = (day::timestamp AT TIME ZONE 'UTC')")
+        connection.execute("UPDATE #{quoted} SET period_start = (day::timestamp)")
       end
 
       def copy_period_start_to_day(connection)

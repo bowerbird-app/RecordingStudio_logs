@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reconciliation recounts the last `reconciliation_days` periods per aggregation. Daily aggregations still use that integer as days.
 - Retention deletes raw rows only after every covering period is closed and counted.
 - Owner deletion rebuilds unscoped summaries for the affected period starts.
+- Owner deletion loads distinct hour-truncated timestamps for a root instead of every raw row time.
+- Aggregation runs upgrade copies `day` as midnight without session time zone conversion.
 
 ### Upgrade notes
 - Run `bin/rails generate recording_studio_logs:migrations` and migrate **before** booting 0.6.0 code. Hosts that already have the runs table get `period_start` from the upgrade migration. See [UPGRADING.md](UPGRADING.md).

@@ -275,13 +275,62 @@ class LogsPeriodPostgresTest < Minitest::Test
     )
     kept = SecureRandom.uuid
     removed = SecureRandom.uuid
-    insert_view(Time.utc(2026, 10, 14, 1), root_recording_id: kept, resource_type: "PressKit")
-    insert_view(Time.utc(2026, 10, 14, 1), root_recording_id: removed, resource_type: "PressKit")
+    insert_view(Time.utc(2026, 10, 14, 1, 10), root_recording_id: kept, resource_type: "PressKit")
+    insert_view(Time.utc(2026, 10, 14, 1, 10), root_recording_id: removed, resource_type: "PressKit")
+    insert_view(Time.utc(2026, 10, 14, 1, 50), root_recording_id: removed, resource_type: "PressKit")
     RecordingStudioLogs.aggregate_period!("host/all_hours", Time.utc(2026, 10, 14, 0))
+
+    times = RecordingStudioLogs::Retention::RawRows.times_for(
+      ActiveRecord::Base.connection, VIEW_TABLE, "occurred_at", "root_recording_id", removed
+    )
+    days = RecordingStudioLogs::Retention::RawRows.days_for(
+      ActiveRecord::Base.connection, VIEW_TABLE, "occurred_at", "root_recording_id", removed
+    )
+    assert_equal [Time.utc(2026, 10, 14, 1)], times.map(&:utc)
+    assert_equal [Date.new(2026, 10, 14)], days
 
     RecordingStudioLogs.delete_for_root(root_recording_id: removed)
 
     assert_equal 1, HourSummary.where(hour: Time.utc(2026, 10, 14, 0), resource_type: "PressKit").sum(:views)
+  end
+
+  def test_owner_deletion_rebuilds_an_unscoped_daily_summary
+    connection = ActiveRecord::Base.connection
+    connection.create_table :rs_logs_period_totals, id: :uuid do |table|
+      table.date :day, null: false
+      table.string :resource_type
+      table.integer :views, null: false, default: 0
+      table.timestamps
+    end
+    totals = self.class.const_set(:PeriodTotalSummary, Class.new(ActiveRecord::Base) do
+      self.table_name = "rs_logs_period_totals"
+    end)
+    RecordingStudioLogs.aggregate(
+      source: ViewLog, name: "host/all_days", summary_model: totals,
+      group_by: [:resource_type], measurements: { views: :count }, owner: "Host totals"
+    )
+    kept = SecureRandom.uuid
+    removed = SecureRandom.uuid
+    insert_view(Time.utc(2026, 10, 14, 1, 10), root_recording_id: kept, resource_type: "PressKit")
+    insert_view(Time.utc(2026, 10, 14, 1, 50), root_recording_id: removed, resource_type: "PressKit")
+    insert_view(Time.utc(2026, 10, 14, 18, 5), root_recording_id: removed, resource_type: "PressKit")
+    RecordingStudioLogs.aggregate_day!(Date.new(2026, 10, 14))
+
+    times = RecordingStudioLogs::Retention::RawRows.times_for(
+      connection, VIEW_TABLE, "occurred_at", "root_recording_id", removed
+    )
+    days = RecordingStudioLogs::Retention::RawRows.days_for(
+      connection, VIEW_TABLE, "occurred_at", "root_recording_id", removed
+    )
+    assert_equal [Time.utc(2026, 10, 14, 1), Time.utc(2026, 10, 14, 18)], times.map(&:utc).sort
+    assert_equal [Date.new(2026, 10, 14)], days
+
+    RecordingStudioLogs.delete_for_root(root_recording_id: removed)
+
+    assert_equal 1, totals.where(day: Date.new(2026, 10, 14), resource_type: "PressKit").sum(:views)
+  ensure
+    connection.drop_table(:rs_logs_period_totals, if_exists: true)
+    self.class.send(:remove_const, :PeriodTotalSummary) if self.class.const_defined?(:PeriodTotalSummary, false)
   end
 
   def test_upgrade_renames_day_to_period_start
@@ -310,6 +359,35 @@ class LogsPeriodPostgresTest < Minitest::Test
     row = RecordingStudioLogs::AggregationRun.find_by!(aggregation_name: "host/day_views")
     assert_equal Time.utc(2026, 10, 14), row.period_start
     refute connection.column_exists?(:recording_studio_logs_aggregation_runs, :day)
+  end
+
+  def test_upgrade_copies_day_as_midnight_in_a_non_utc_session
+    connection = ActiveRecord::Base.connection
+    connection.drop_table(:recording_studio_logs_aggregation_runs, if_exists: true)
+    connection.create_table :recording_studio_logs_aggregation_runs, id: :uuid do |table|
+      table.string :aggregation_name, null: false
+      table.date :day, null: false
+      table.string :status, null: false
+      table.text :error_message
+      table.datetime :finished_at
+      table.timestamps
+    end
+    connection.add_index :recording_studio_logs_aggregation_runs, %i[aggregation_name day],
+                         unique: true, name: "index_rs_logs_aggregation_runs_on_name_and_day"
+    connection.execute(<<~SQL.squish)
+      INSERT INTO recording_studio_logs_aggregation_runs
+        (id, aggregation_name, day, status, finished_at, created_at, updated_at)
+      VALUES (gen_random_uuid(), 'host/day_views', '2026-10-14', 'succeeded',
+              CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    SQL
+
+    connection.execute("SET TIME ZONE 'America/Los_Angeles'")
+    RecordingStudioLogs::Schema.upgrade_aggregation_runs!(connection)
+
+    row = RecordingStudioLogs::AggregationRun.find_by!(aggregation_name: "host/day_views")
+    assert_equal Time.utc(2026, 10, 14, 0, 0), row.period_start
+  ensure
+    connection.execute("SET TIME ZONE 'UTC'")
   end
 
   private

@@ -17,7 +17,7 @@ module RecordingStudioLogs
       def times_for(connection, table_name, time_column, root_column, root_recording_id)
         time = connection.quote_column_name(time_column)
         sql = <<~SQL.squish
-          SELECT #{time} FROM #{quoted(connection, table_name)}
+          SELECT DISTINCT date_trunc('hour', #{time}) FROM #{quoted(connection, table_name)}
           WHERE #{match(connection, root_column, root_recording_id)}
         SQL
         connection.select_values(sql).filter_map { |value| coerce_time(value) }
