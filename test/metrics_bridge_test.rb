@@ -8,12 +8,14 @@ class MetricsBridgeTest < Minitest::Test
     RecordingStudioLogs.reset!
     previous = connection_config
     ActiveRecord::Base.establish_connection(missing_database)
-    source = self.class.const_set(:BootSource, Class.new(ActiveRecord::Base) do
+    source = Class.new(ActiveRecord::Base) do
+      def self.name = "BootSource"
       self.table_name = "boot_sources"
-    end)
-    summary = self.class.const_set(:BootSummary, Class.new(ActiveRecord::Base) do
+    end
+    summary = Class.new(ActiveRecord::Base) do
+      def self.name = "BootSummary"
       self.table_name = "boot_summaries"
-    end)
+    end
     RecordingStudioLogs.register(
       model: source, timestamp_column: :occurred_at, root_column: :root_recording_id,
       aggregatable: { root_recording_id: { group: true } }
@@ -29,19 +31,18 @@ class MetricsBridgeTest < Minitest::Test
   ensure
     RecordingStudioLogs.reset!
     restore_connection(previous)
-    %w[BootSource BootSummary].each do |name|
-      self.class.send(:remove_const, name) if self.class.const_defined?(name, false)
-    end
   end
 
   def test_bad_timezone_and_logs_group_by_are_metrics_input_errors
     RecordingStudioLogs.reset!
-    source = self.class.const_set(:BridgeSource, Class.new(ActiveRecord::Base) do
+    source = Class.new(ActiveRecord::Base) do
+      def self.name = "BridgeSource"
       self.table_name = "bridge_sources"
-    end)
-    summary = self.class.const_set(:BridgeSummary, Class.new(ActiveRecord::Base) do
+    end
+    summary = Class.new(ActiveRecord::Base) do
+      def self.name = "BridgeSummary"
       self.table_name = "bridge_summaries"
-    end)
+    end
     RecordingStudioLogs.register(
       model: source, timestamp_column: :occurred_at, root_column: :root_recording_id,
       aggregatable: { root_recording_id: { group: true } }
@@ -55,23 +56,27 @@ class MetricsBridgeTest < Minitest::Test
       scope: :root, system: true, workspace_id: "ws", timezone: "UTC"
     )
 
+    assert_empty RecordingStudioMetrics.for_resource(:host_bridge_views)
     assert_raises(RecordingStudioMetrics::Errors::InvalidDateRange) do
       RecordingStudioMetrics::Context.new(scope: :root, system: true, workspace_id: "ws", timezone: "Not/AZone")
     end
-    assert_raises(RecordingStudioMetrics::Errors::InvalidFilter) do
+    assert_raises(RecordingStudioMetrics::Errors::UnknownMetric) do
       RecordingStudioMetrics.execute("host_bridge_views.views", context: context, group_by: "ip_address")
-    end
-    assert_raises(RecordingStudioMetrics::Errors::InvalidFilter) do
-      RecordingStudioMetrics.execute("host_bridge_views.views", context: context, group_by: "email")
     end
     assert_raises(RecordingStudioMetrics::Errors::UnknownMetric) do
       RecordingStudioMetrics.execute("api_requests.server_errors_over_time", context: context, group_by: "route_name")
     end
   ensure
     RecordingStudioLogs.reset!
-    %w[BridgeSource BridgeSummary].each do |name|
-      self.class.send(:remove_const, name) if self.class.const_defined?(name, false)
-    end
+  end
+
+  def test_bridge_does_not_reopen_metrics_classes
+    refute defined?(RecordingStudioLogs::MetricsBoundary)
+    refute File.exist?(File.expand_path("../lib/recording_studio_logs/metrics_boundary.rb", __dir__))
+    source = File.read(File.expand_path("../lib/recording_studio_logs/metrics_bridge.rb", __dir__))
+
+    refute_includes source, "prepend"
+    refute_includes source, "class_eval"
   end
 
   private

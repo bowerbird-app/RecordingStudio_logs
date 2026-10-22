@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-22
+
+### Changed
+- Logs registers daily count and sum summaries through the public Metrics `register` API. UTC buckets and empty days use `bucket_timezone: "UTC"` and `fill_gaps: false`. Root isolation uses `scope_attribute:` set to the log's root column.
+- RecordingStudio_metrics is pinned to `~> 0.6` (GitHub tag `v0.6.0`).
+- Missing `config/recording_studio_logs.yml` is skipped. Invalid YAML and invalid `config.x` values raise.
+- The install generator no longer injects Tailwind or Flatpack `@source` paths. The engine no longer ships a template home controller or root route.
+
+### Removed
+- Prepends into RecordingStudioMetrics (`MetricsBoundary`, timeseries `SummarySeries`, and the workspace-id fallback for summary scope).
+- Engine `class_eval` `extend_model` / `extend_controller` hooks.
+- Dead `day_for`, unused summary `filter.inspect`, template kit leftovers (`docs/gem_template`, `.github/agents`, `bin/rename_gem`, fetch-skills and rename tests), and stale root `MIGRATION_NOTES.md` / `UPDATE_SUMMARY.md`.
+
+### Upgrade notes
+- See [UPGRADING.md](UPGRADING.md). Hosts need Metrics 0.6.0 or newer for the logs bridge.
+
 ## [0.6.0] - 2026-10-21
 
 ### Added
@@ -221,7 +237,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.4.2...v0.5.0

@@ -4,7 +4,7 @@ require "test_helper"
 
 class RecordingStudioLogsTest < Minitest::Test
   def test_version_matches_release
-    assert_equal "0.6.0", ::RecordingStudioLogs::VERSION
+    assert_equal "0.7.0", ::RecordingStudioLogs::VERSION
   end
 
   def test_engine_exists
@@ -15,6 +15,7 @@ class RecordingStudioLogsTest < Minitest::Test
     gemspec = File.read(File.expand_path("../recording_studio_logs.gemspec", __dir__))
 
     assert_includes gemspec, 'spec.add_dependency "recording_studio", "~> 4.2"'
+    assert_includes gemspec, 'spec.add_dependency "recording_studio_metrics", "~> 0.6"'
   end
 
   def test_gemspec_excludes_cursor_config
@@ -53,7 +54,8 @@ class RecordingStudioLogsTest < Minitest::Test
     refute_includes gemfile, 'tag: "v0.10.1"'
     assert_includes gemfile, 'github: "bowerbird-app/RecordingStudio_root_switchable", tag: "v0.9.0"'
     assert_includes gemfile, 'github: "bowerbird-app/RecordingStudio_cache", tag: "v0.5.0"'
-    refute_includes gemfile, 'tag: "v0.6.0"'
+    assert_includes gemfile, 'github: "bowerbird-app/RecordingStudio_metrics", tag: "v0.6.0"'
+    refute_includes gemfile, 'RecordingStudio_accessible", tag: "v0.6.0"'
     refute_includes gemfile, 'tag: "v0.5.1"'
     assert_includes gemfile, 'github: "bowerbird-app/flatpack", tag: "v0.1.196"'
     refute_includes gemfile, "recording_studio/v3.0.0"
@@ -187,7 +189,7 @@ class RecordingStudioLogsTest < Minitest::Test
     readme_path = File.expand_path("dummy/README.md", __dir__)
     readme_source = File.read(readme_path)
 
-    assert_includes readme_source, "This Rails app exists to validate the Recording Studio addon template"
+    assert_includes readme_source, "This Rails app exists to validate RecordingStudioLogs"
     assert_includes readme_source, "/recording_studio"
     assert_includes readme_source, "redirects to `/`"
     refute_includes readme_source, "flat_pack_sidebar"
@@ -206,8 +208,8 @@ class RecordingStudioLogsTest < Minitest::Test
     refute_includes readme, "dummy GitHub tag `v0.15.0`"
     refute_includes readme, "dummy GitHub tag `v0.10.1`"
     assert_includes readme, "dummy GitHub tag `v0.9.0`"
+    assert_includes readme, "dummy GitHub tag `v0.6.0` for Metrics"
     refute_includes readme, "dummy GitHub tag `v0.8.0`"
-    refute_includes readme, "dummy GitHub tag `v0.6.0`"
     refute_includes readme, "dummy GitHub tag `v0.5.1`"
     refute_includes readme, "dummy GitHub tag `v4.4.0`"
     refute_includes readme, "dummy GitHub tag `v4.3.0`"
@@ -223,15 +225,15 @@ class RecordingStudioLogsTest < Minitest::Test
     refute_includes readme, "recording_studio/v3.0.0"
   end
 
-  def test_dummy_home_page_uses_demo_title_only
+  def test_dummy_home_page_lists_logs
     view_path = File.expand_path("dummy/app/views/home/index.html.erb", __dir__)
     view_source = File.read(view_path)
 
-    assert_includes view_source, 'title: "Template Demo"'
-    assert_includes view_source, 'subtitle: "This dummy app is the browser-facing demo surface for the template."'
-    assert_includes view_source, "FlatPack::Card::Component"
+    assert_includes view_source, 'title: "What\'s counting"'
+    assert_includes view_source, "Site views and downloads this dummy rolls up."
+    assert_includes view_source, "FlatPack::Table::Component"
     assert_includes view_source, "dummy_page_nav"
-    refute_includes view_source, 'title: "Demo"'
+    refute_includes view_source, "Template Demo"
     refute_includes view_source, "FlatPack::Breadcrumb::Component"
   end
 

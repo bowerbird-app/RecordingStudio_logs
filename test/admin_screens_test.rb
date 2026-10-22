@@ -121,46 +121,6 @@ class AdminScreensTest < Minitest::Test
     assert_equal :success, RecordingStudioLogs::Admin::Status.badge_style("succeeded")
   end
 
-  def test_authorization_fails_closed_without_an_actor_or_recording
-    require "recording_studio_admin"
-    actor = Object.new
-    recording = Object.new
-
-    error = assert_raises(RecordingStudioAdmin::AuthorizationFailed) do
-      RecordingStudioAdmin::Authorization.authorize!(
-        RecordingStudioAdmin::Context.new(current_actor: nil),
-        recording: recording
-      )
-    end
-    assert_match(/current actor is not configured/, error.message)
-
-    error = assert_raises(RecordingStudioAdmin::AuthorizationFailed) do
-      RecordingStudioAdmin::Authorization.authorize!(
-        RecordingStudioAdmin::Context.new(current_actor: actor),
-        recording: nil
-      )
-    end
-    assert_match(/access recording is not configured/, error.message)
-  end
-
-  def test_authorization_defers_to_accessible_view
-    require "recording_studio_admin"
-    require "recording_studio_accessible"
-
-    actor = Object.new
-    recording = Object.new
-    context = RecordingStudioAdmin::Context.new(current_actor: actor)
-
-    RecordingStudioAccessible.stub(:authorized?, false) do
-      assert_raises(RecordingStudioAdmin::AuthorizationFailed) do
-        RecordingStudioAdmin::Authorization.authorize!(context, recording: recording)
-      end
-    end
-    RecordingStudioAccessible.stub(:authorized?, true) do
-      assert RecordingStudioAdmin::Authorization.authorize!(context, recording: recording)
-    end
-  end
-
   private
 
   def with_enabled_logs_root

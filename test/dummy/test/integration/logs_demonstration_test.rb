@@ -32,10 +32,9 @@ class LogsDemonstrationTest < ActiveSupport::TestCase
     context = RecordingStudioMetrics::Context.new(
       scope: :root, system: true, workspace_id: SecureRandom.uuid, timezone: "UTC"
     )
-    error = assert_raises(RecordingStudioMetrics::Errors::InvalidFilter) do
+    assert_raises(RecordingStudioMetrics::Errors::InvalidGroupBy) do
       RecordingStudioMetrics.execute("presskits_press_kit_views.views", context: context, group_by: "route_name")
     end
-    assert_equal "group_by is not supported", error.message
 
     connection = ActiveRecord::Base.connection
     connection.create_table table, id: :uuid, force: true do |t|
@@ -84,10 +83,8 @@ class LogsDemonstrationTest < ActiveSupport::TestCase
       end_at: Time.utc(2026, 10, 16),
       interval: :day
     )
-    filled = result.data.select { |point| point[:value] }
-
-    assert_equal [["2026-10-14", 7]], filled.map { |point| [point[:date], point[:value].to_i] }
-    assert result.data.any? { |point| point[:value].nil? }
+    assert_equal [["2026-10-14", 7]], result.data.map { |point| [point[:date], point[:value].to_i] }
+    refute result.data.any? { |point| point[:value].nil? || point[:value].to_i.zero? }
   end
 
   test "download counts stay on their own indefinite log" do

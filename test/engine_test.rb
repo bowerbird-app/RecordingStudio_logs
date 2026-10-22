@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "fileutils"
+require "tmpdir"
 
 class EngineTest < Minitest::Test
   def setup
@@ -51,7 +53,36 @@ class EngineTest < Minitest::Test
     assert_equal 12, RecordingStudioLogs.configuration.reconciliation_days
   end
 
-  def test_load_config_handles_errors_and_each_pair_fallback
+  def test_load_config_skips_a_missing_yaml_file
+    Dir.mktmpdir do |dir|
+      config_dir = File.join(dir, "config")
+      FileUtils.mkdir_p(config_dir)
+      app = yaml_app(config_dir, extra: { months_ahead: 8 }) do |_name|
+        flunk "config_for should not run when the yaml file is missing"
+      end
+
+      find_initializer("recording_studio_logs.load_config").block.call(app)
+
+      assert_equal 8, RecordingStudioLogs.configuration.months_ahead
+      assert_equal 3, RecordingStudioLogs.configuration.reconciliation_days
+    end
+  end
+
+  def test_load_config_raises_on_invalid_yaml
+    Dir.mktmpdir do |dir|
+      config_dir = File.join(dir, "config")
+      FileUtils.mkdir_p(config_dir)
+      File.write(File.join(config_dir, "recording_studio_logs.yml"), "not: [valid")
+      error_class = Class.new(StandardError)
+      app = yaml_app(config_dir) { |_name| raise error_class, "invalid yaml" }
+
+      assert_raises(error_class) do
+        find_initializer("recording_studio_logs.load_config").block.call(app)
+      end
+    end
+  end
+
+  def test_load_config_merges_each_pair_x_config
     pair_config = Class.new do
       def each_pair
         yield(:reconciliation_days, 15)
@@ -60,10 +91,9 @@ class EngineTest < Minitest::Test
 
     xcfg = Struct.new(:recording_studio_logs).new(pair_config)
     app_config = Struct.new(:x).new(xcfg)
-
     app = Struct.new(:config) do
       def config_for(_name)
-        raise "missing file"
+        {}
       end
     end.new(app_config)
 
@@ -72,10 +102,10 @@ class EngineTest < Minitest::Test
     assert_equal 15, RecordingStudioLogs.configuration.reconciliation_days
   end
 
-  def test_load_config_swallow_each_pair_errors
+  def test_load_config_raises_when_each_pair_fails
     bad_pair_config = Class.new do
       def each_pair
-        raise "bad pair"
+        raise KeyError, "bad pair"
       end
     end.new
 
@@ -87,10 +117,9 @@ class EngineTest < Minitest::Test
       end
     end.new(app_config)
 
-    # Should not raise even if xcfg.each_pair fails.
-    find_initializer("recording_studio_logs.load_config").block.call(app)
-
-    assert_equal 6, RecordingStudioLogs.configuration.months_ahead
+    assert_raises(KeyError) do
+      find_initializer("recording_studio_logs.load_config").block.call(app)
+    end
   end
 
   def test_load_config_is_noop_without_config_sources
@@ -102,198 +131,24 @@ class EngineTest < Minitest::Test
     assert_equal 3, RecordingStudioLogs.configuration.reconciliation_days
   end
 
-  def test_load_config_ignores_non_enumerable_yaml_and_merge_errors
-    yaml = Class.new do
-      def each
-        raise "bad yaml"
-      end
-    end.new
+  def test_engine_does_not_extend_host_models_or_controllers
+    names = RecordingStudioLogs::Engine.initializers.map(&:name)
 
-    xcfg = Struct.new(:recording_studio_logs).new({ reconciliation_days: 9 })
-    app_config = Struct.new(:x).new(xcfg)
-    app = Struct.new(:config) do
-      attr_accessor :yaml
-
-      def config_for(_name)
-        @yaml
-      end
-    end.new(app_config)
-    app.yaml = yaml
-
-    find_initializer("recording_studio_logs.load_config").block.call(app)
-
-    assert_equal 9, RecordingStudioLogs.configuration.reconciliation_days
-  end
-
-  def test_apply_extension_initializers_register_active_support_on_load_callbacks
-    to_prepare_blocks = []
-    config_stub = Object.new
-    config_stub.define_singleton_method(:to_prepare) do |&block|
-      to_prepare_blocks << block
-    end
-
-    RecordingStudioLogs::Engine.stub(:config, config_stub) do
-      find_initializer("recording_studio_logs.apply_model_extensions").block.call
-      find_initializer("recording_studio_logs.apply_controller_extensions").block.call
-    end
-
-    assert_equal 2, to_prepare_blocks.size
-  end
-
-  def test_model_extension_initializer_skips_abstract_models
-    to_prepare_blocks = []
-    config_stub = Object.new
-    config_stub.define_singleton_method(:to_prepare) do |&block|
-      to_prepare_blocks << block
-    end
-
-    abstract_model = Class.new do
-      def self.abstract_class?
-        true
-      end
-    end
-    concrete_model = Class.new do
-      def self.abstract_class?
-        false
-      end
-    end
-    applied = []
-    active_record_base = Class.new
-    active_record_base.define_singleton_method(:descendants) { [abstract_model, concrete_model] }
-
-    RecordingStudioLogs::Engine.stub(:config, config_stub) do
-      find_initializer("recording_studio_logs.apply_model_extensions").block.call
-    end
-
-    with_temporary_nested_constant(:ActiveRecord, :Base, active_record_base) do
-      RecordingStudioLogs::Engine.stub(:apply_model_extensions, ->(model) { applied << model }) do
-        to_prepare_blocks.first.call
-      end
-    end
-
-    assert_equal [concrete_model], applied
-  end
-
-  def test_controller_extension_initializer_applies_all_controllers
-    to_prepare_blocks = []
-    config_stub = Object.new
-    config_stub.define_singleton_method(:to_prepare) do |&block|
-      to_prepare_blocks << block
-    end
-
-    first_controller = Class.new
-    second_controller = Class.new
-    applied = []
-    action_controller_base = Class.new
-    action_controller_base.define_singleton_method(:descendants) { [first_controller, second_controller] }
-
-    RecordingStudioLogs::Engine.stub(:config, config_stub) do
-      find_initializer("recording_studio_logs.apply_controller_extensions").block.call
-    end
-
-    with_temporary_nested_constant(:ActionController, :Base, action_controller_base) do
-      RecordingStudioLogs::Engine.stub(:apply_controller_extensions, ->(controller) { applied << controller }) do
-        to_prepare_blocks.first.call
-      end
-    end
-
-    assert_equal [first_controller, second_controller], applied
-  end
-
-  def test_apply_model_extensions_adds_registered_methods_once
-    model_class = Class.new do
-      def self.name
-        "ExampleRecord"
-      end
-    end
-
-    RecordingStudioLogs.configuration.hooks.extend_model(:ExampleRecord) do
-      def template_extension_method
-        :applied
-      end
-    end
-
-    RecordingStudioLogs::Engine.apply_model_extensions(model_class)
-    RecordingStudioLogs::Engine.apply_model_extensions(model_class)
-
-    instance = model_class.new
-    assert_equal :applied, instance.template_extension_method
-  end
-
-  def test_apply_controller_extensions_matches_demodulized_name
-    controller_class = Class.new do
-      def self.name
-        "Admin::DashboardController"
-      end
-    end
-
-    RecordingStudioLogs.configuration.hooks.extend_controller(:DashboardController) do
-      def template_controller_extension
-        :applied
-      end
-    end
-
-    RecordingStudioLogs::Engine.apply_controller_extensions(controller_class)
-
-    instance = controller_class.new
-    assert_equal :applied, instance.template_controller_extension
-  end
-
-  def test_apply_extensions_flattens_compacts_and_tracks_identity
-    target = Class.new
-    extension = proc do
-      def generated_method
-        :generated
-      end
-    end
-
-    RecordingStudioLogs::Engine.send(:apply_extensions, target, [nil, [extension, extension]])
-
-    assert_equal :generated, target.new.generated_method
-    assert_equal true, target.instance_variable_get(:@recording_studio_logs_applied_extensions).compare_by_identity?
-  end
-
-  def test_apply_extensions_returns_without_target
-    assert_nil RecordingStudioLogs::Engine.send(:apply_extensions, nil, [])
-  end
-
-  def test_extension_keys_for_includes_demodulized_name
-    namespaced = Class.new do
-      def self.name
-        "Admin::ReportsController"
-      end
-    end
-
-    expected_keys = [:"Admin::ReportsController"]
-    expected_keys << :ReportsController
-
-    assert_equal expected_keys, RecordingStudioLogs::Engine.send(:extension_keys_for, namespaced)
-  end
-
-  def test_extension_keys_for_removes_duplicate_names
-    plain = Class.new do
-      def self.name
-        "ReportsController"
-      end
-    end
-
-    assert_equal [:ReportsController], RecordingStudioLogs::Engine.send(:extension_keys_for, plain)
+    refute_includes names, "recording_studio_logs.apply_model_extensions"
+    refute_includes names, "recording_studio_logs.apply_controller_extensions"
+    refute RecordingStudioLogs::Engine.respond_to?(:apply_model_extensions)
+    refute RecordingStudioLogs::Engine.respond_to?(:apply_controller_extensions)
   end
 
   private
 
-  def with_temporary_nested_constant(parent_name, child_name, value)
-    parent_defined = Object.const_defined?(parent_name, false)
-    parent = parent_defined ? Object.const_get(parent_name) : Object.const_set(parent_name, Module.new)
-    child_defined = parent.const_defined?(child_name, false)
-    previous_child = parent.const_get(child_name) if child_defined
-
-    parent.const_set(child_name, value)
-    yield
-  ensure
-    parent.send(:remove_const, child_name) if parent.const_defined?(child_name, false)
-    parent.const_set(child_name, previous_child) if child_defined
-    Object.send(:remove_const, parent_name) unless parent_defined
+  def yaml_app(config_dir, extra: nil, &config_for)
+    paths = { "config" => [config_dir] }
+    xcfg = Struct.new(:recording_studio_logs).new(extra)
+    app_config = Struct.new(:x).new(xcfg)
+    app = Struct.new(:config, :paths).new(app_config, paths)
+    app.define_singleton_method(:config_for, config_for)
+    app
   end
 
   def find_initializer(name)

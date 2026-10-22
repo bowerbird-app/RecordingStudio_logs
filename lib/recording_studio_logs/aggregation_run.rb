@@ -86,13 +86,7 @@ module RecordingStudioLogs
     end
 
     def self.coerce_start(value)
-      case value
-      when Time then value.utc.change(usec: 0)
-      when Date then Time.utc(value.year, value.month, value.day)
-      else
-        time = value.respond_to?(:to_time) ? value.to_time : Time.parse(value.to_s)
-        time.utc.change(usec: 0)
-      end
+      Aggregation::Period.utc_time(value).change(usec: 0)
     end
 
     def self.upsert(connection, name, period_start, status, error_message)

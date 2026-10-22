@@ -527,13 +527,14 @@ class LogsPostgresTest < Minitest::Test
       ),
       start_at: Time.utc(2026, 10, 14), end_at: Time.utc(2026, 10, 16), interval: :day
     )
-    filled = result.data.select { |point| point[:value] }
-
-    assert_equal([["2026-10-14", 7]], filled.map { |point| [point[:date], point[:value].to_i] })
-    assert(result.data.any? { |point| point[:value].nil? })
+    assert_equal([["2026-10-14", 7]], result.data.map { |point| [point[:date], point[:value].to_i] })
+    refute(result.data.any? { |point| point[:value].nil? || point[:value].to_i.zero? })
     definition = RecordingStudioMetrics.find("presskits_press_kit_views.views")
     assert_equal "count", definition.unit
     assert_equal "utc_day_rollup", definition.semantics
+    assert_equal "UTC", definition.bucket_timezone
+    assert_equal false, definition.fill_gaps
+    assert_equal :root_recording_id, definition.scope_attribute
     assert_equal "Fresh UTC-day rollup of views. A day with no summary is empty.", definition.description
   end
 
@@ -549,7 +550,7 @@ class LogsPostgresTest < Minitest::Test
     result = RecordingStudioMetrics.execute(
       "presskits_press_kit_views.views",
       context: RecordingStudioMetrics::Context.new(
-        scope: :root, system: true, root_recording: root, timezone: "UTC",
+        scope: :root, system: true, root_recording: root, workspace_id: root_id, timezone: "UTC",
         timestamp: Time.utc(2026, 10, 16, 12)
       ),
       start_at: Time.utc(2026, 10, 14), end_at: Time.utc(2026, 10, 16), interval: :day
@@ -607,12 +608,11 @@ class LogsPostgresTest < Minitest::Test
       timestamp: Time.utc(2026, 10, 16, 12)
     )
 
-    error = assert_raises(RecordingStudioMetrics::Errors::InvalidFilter) do
+    assert_raises(RecordingStudioMetrics::Errors::InvalidGroupBy) do
       RecordingStudioMetrics.execute(
         "presskits_press_kit_views.views", context: context, group_by: "route_name"
       )
     end
-    assert_equal "group_by is not supported", error.message
   end
 
   def test_a_bad_start_at_is_a_metrics_input_error

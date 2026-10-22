@@ -7,7 +7,7 @@ module RecordingStudioLogs
     ConfigRow = Data.define(:id, :setting, :value)
     PartitionRow = Data.define(:id, :name, :range, :rows, :storage, :expiration)
 
-    AggregationRow = Data.define(:id, :key, :name, :source, :owner, :filters, :grouping, :measurements, :interval,
+    AggregationRow = Data.define(:id, :key, :name, :source, :owner, :grouping, :measurements, :interval,
                                  :last_success, :status)
     RunRow = Data.define(:id, :period_start, :status, :finished_at, :error_message)
 
@@ -98,7 +98,7 @@ module RecordingStudioLogs
       def aggregation_identity(definition)
         {
           id: definition.name, key: definition.name, name: definition.name, source: definition.source.name,
-          owner: definition.owner, filters: definition.filter.inspect
+          owner: definition.owner
         }
       end
 

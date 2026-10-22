@@ -7,15 +7,9 @@ module RecordingStudioLogs
     attr_reader :model_reference, :timestamp_column, :partition_interval, :root_column, :owner,
                 :contract, :declared_retention
 
-    def initialize(model:, timestamp_column:, partition_interval: :monthly, retention: :indefinite, # rubocop:disable Metrics/ParameterLists
-                   root_column: nil, owner: nil, aggregatable: {})
-      @model_reference = ModelReference.new(model)
-      @timestamp_column = timestamp_column.to_sym
-      @partition_interval = normalize_interval(partition_interval)
-      @declared_retention = Retention.normalize(retention)
-      @root_column = root_column&.to_sym
-      @owner = owner.presence || default_owner
-      @contract = ColumnContract.new(aggregatable)
+    def initialize(**attributes)
+      assign_identity(attributes)
+      assign_contract(attributes)
       validate_timestamp!
     end
 
@@ -55,6 +49,19 @@ module RecordingStudioLogs
     end
 
     private
+
+    def assign_identity(attributes)
+      @model_reference = ModelReference.new(attributes.fetch(:model))
+      @timestamp_column = attributes.fetch(:timestamp_column).to_sym
+      @partition_interval = normalize_interval(attributes.fetch(:partition_interval, :monthly))
+      @declared_retention = Retention.normalize(attributes.fetch(:retention, :indefinite))
+      @root_column = attributes[:root_column]&.to_sym
+      @owner = attributes[:owner].presence || default_owner
+    end
+
+    def assign_contract(attributes)
+      @contract = ColumnContract.new(attributes.fetch(:aggregatable, {}))
+    end
 
     def normalize_interval(value)
       interval = value&.to_sym
