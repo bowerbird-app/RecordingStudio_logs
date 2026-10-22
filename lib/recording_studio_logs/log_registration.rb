@@ -3,13 +3,20 @@
 module RecordingStudioLogs
   class LogRegistration
     INTERVALS = [nil, :monthly].freeze
+    KEYS = %i[model timestamp_column partition_interval retention root_column owner aggregatable].freeze
 
     attr_reader :model_reference, :timestamp_column, :partition_interval, :root_column, :owner,
                 :contract, :declared_retention
 
     def initialize(**attributes)
-      assign_identity(attributes)
-      assign_contract(attributes)
+      attributes.assert_valid_keys(*KEYS)
+      @model_reference = ModelReference.new(attributes.fetch(:model))
+      @timestamp_column = attributes.fetch(:timestamp_column).to_sym
+      @partition_interval = normalize_interval(attributes.fetch(:partition_interval, :monthly))
+      @declared_retention = Retention.normalize(attributes.fetch(:retention, :indefinite))
+      @root_column = attributes[:root_column]&.to_sym
+      @owner = attributes[:owner].presence || default_owner
+      @contract = ColumnContract.new(attributes.fetch(:aggregatable, {}))
       validate_timestamp!
     end
 
@@ -49,19 +56,6 @@ module RecordingStudioLogs
     end
 
     private
-
-    def assign_identity(attributes)
-      @model_reference = ModelReference.new(attributes.fetch(:model))
-      @timestamp_column = attributes.fetch(:timestamp_column).to_sym
-      @partition_interval = normalize_interval(attributes.fetch(:partition_interval, :monthly))
-      @declared_retention = Retention.normalize(attributes.fetch(:retention, :indefinite))
-      @root_column = attributes[:root_column]&.to_sym
-      @owner = attributes[:owner].presence || default_owner
-    end
-
-    def assign_contract(attributes)
-      @contract = ColumnContract.new(attributes.fetch(:aggregatable, {}))
-    end
 
     def normalize_interval(value)
       interval = value&.to_sym

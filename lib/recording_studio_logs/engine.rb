@@ -9,7 +9,13 @@ module RecordingStudioLogs
     end
 
     initializer "recording_studio_logs.load_config" do |app|
-      Engine.load_yaml_config(app)
+      if app.respond_to?(:config_for)
+        path = yaml_config_path(app)
+        unless path.nil? || !File.exist?(path)
+          yaml = app.config_for(:recording_studio_logs)
+          RecordingStudioLogs.configuration.merge!(yaml) if yaml.respond_to?(:each)
+        end
+      end
       Engine.load_x_config(app)
       RecordingStudioLogs.configuration.hooks.run(:on_configuration, RecordingStudioLogs.configuration)
     end
@@ -28,16 +34,6 @@ module RecordingStudioLogs
     end
 
     class << self
-      def load_yaml_config(app)
-        return unless app.respond_to?(:config_for)
-
-        path = yaml_config_path(app)
-        return if path && !File.exist?(path)
-
-        yaml = app.config_for(:recording_studio_logs)
-        RecordingStudioLogs.configuration.merge!(yaml) if yaml.respond_to?(:each)
-      end
-
       def load_x_config(app)
         return unless app.config.respond_to?(:x) && app.config.x.respond_to?(:recording_studio_logs)
 

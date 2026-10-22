@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.7.0] - 2026-10-22
 
 ### Changed
-- Logs registers daily count and sum summaries through the public Metrics `register` API. UTC buckets and empty days use `bucket_timezone: "UTC"` and `fill_gaps: false`. Root isolation uses `scope_attribute:` set to the log's root column.
-- RecordingStudio_metrics is pinned to `~> 0.6` (GitHub tag `v0.6.0`).
-- Missing `config/recording_studio_logs.yml` is skipped. Invalid YAML and invalid `config.x` values raise.
+- Logs registers daily count and sum summaries through the public Metrics `register` API. UTC buckets use `bucket_timezone: "UTC"`. Empty days are zero-filled (`fill_gaps: true`). Root isolation uses `scope_attribute: :root_recording_id` and `scope_value: :root_recording_id`.
+- RecordingStudio_metrics is pinned to `~> 0.6.1` (GitHub tag `v0.6.1`).
+- Missing `config/recording_studio_logs.yml` is skipped, including a nil config path. Invalid YAML and invalid `config.x` values raise.
 - The install generator no longer injects Tailwind or Flatpack `@source` paths. The engine no longer ships a template home controller or root route.
 
 ### Removed
@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dead `day_for`, unused summary `filter.inspect`, template kit leftovers (`docs/gem_template`, `.github/agents`, `bin/rename_gem`, fetch-skills and rename tests), and stale root `MIGRATION_NOTES.md` / `UPDATE_SUMMARY.md`.
 
 ### Upgrade notes
-- See [UPGRADING.md](UPGRADING.md). Hosts need Metrics 0.6.0 or newer for the logs bridge.
+- See [UPGRADING.md](UPGRADING.md). Hosts need Metrics 0.6.1 or newer for the logs bridge. Pass `root_recording:` when querying Logs series. Empty days are zeros. The caller timezone does not regroup UTC days. `group_by` on a Logs series raises `InvalidGroupBy`.
 
 ## [0.6.0] - 2026-10-21
 

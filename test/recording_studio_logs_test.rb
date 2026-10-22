@@ -15,7 +15,7 @@ class RecordingStudioLogsTest < Minitest::Test
     gemspec = File.read(File.expand_path("../recording_studio_logs.gemspec", __dir__))
 
     assert_includes gemspec, 'spec.add_dependency "recording_studio", "~> 4.2"'
-    assert_includes gemspec, 'spec.add_dependency "recording_studio_metrics", "~> 0.6"'
+    assert_includes gemspec, 'spec.add_dependency "recording_studio_metrics", "~> 0.6.1"'
   end
 
   def test_gemspec_excludes_cursor_config
@@ -54,7 +54,7 @@ class RecordingStudioLogsTest < Minitest::Test
     refute_includes gemfile, 'tag: "v0.10.1"'
     assert_includes gemfile, 'github: "bowerbird-app/RecordingStudio_root_switchable", tag: "v0.9.0"'
     assert_includes gemfile, 'github: "bowerbird-app/RecordingStudio_cache", tag: "v0.5.0"'
-    assert_includes gemfile, 'github: "bowerbird-app/RecordingStudio_metrics", tag: "v0.6.0"'
+    assert_includes gemfile, 'github: "bowerbird-app/RecordingStudio_metrics", tag: "v0.6.1"'
     refute_includes gemfile, 'RecordingStudio_accessible", tag: "v0.6.0"'
     refute_includes gemfile, 'tag: "v0.5.1"'
     assert_includes gemfile, 'github: "bowerbird-app/flatpack", tag: "v0.1.196"'
@@ -208,7 +208,7 @@ class RecordingStudioLogsTest < Minitest::Test
     refute_includes readme, "dummy GitHub tag `v0.15.0`"
     refute_includes readme, "dummy GitHub tag `v0.10.1`"
     assert_includes readme, "dummy GitHub tag `v0.9.0`"
-    assert_includes readme, "dummy GitHub tag `v0.6.0` for Metrics"
+    assert_includes readme, "dummy GitHub tag `v0.6.1` for Metrics"
     refute_includes readme, "dummy GitHub tag `v0.8.0`"
     refute_includes readme, "dummy GitHub tag `v0.5.1`"
     refute_includes readme, "dummy GitHub tag `v4.4.0`"

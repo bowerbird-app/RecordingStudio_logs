@@ -235,7 +235,7 @@ class LogsPostgresTest < Minitest::Test
     RecordingStudioLogs.cleanup_retention!
     refute RecordingStudioLogs::Partitioning::Catalog.exists?(VIEW_TABLE, name)
   ensure
-    drop_extra("rs_logs_spec_later_counts", "LaterCount")
+    drop_extra("rs_logs_spec_later_counts")
   end
 
   def test_owner_deletion_removes_one_root_from_logs_and_summaries
@@ -264,15 +264,15 @@ class LogsPostgresTest < Minitest::Test
     insert_view(day, "PressKit", root_recording_id: kept)
     insert_view(day, "PressKit", root_recording_id: removed)
     RecordingStudioLogs.aggregate_day!(day)
-    assert_equal 2, TotalSummary.sum(:views)
+    assert_equal 2, total_summary.sum(:views)
 
     RecordingStudioLogs.delete_for_root(root_recording_id: removed)
 
     assert_equal [kept], ViewLog.pluck(:root_recording_id)
     assert_equal [kept], KitSummary.pluck(:root_recording_id)
-    assert_equal 1, TotalSummary.sum(:views)
+    assert_equal 1, total_summary.sum(:views)
   ensure
-    drop_extra("rs_logs_spec_totals", "TotalSummary")
+    drop_extra("rs_logs_spec_totals")
   end
 
   def test_a_dormant_consumer_blocks_owner_deletion
@@ -318,12 +318,12 @@ class LogsPostgresTest < Minitest::Test
 
     assert_equal [kept], ViewLog.pluck(:root_recording_id)
     assert_equal [kept], KitSummary.where(day: day).pluck(:root_recording_id)
-    assert_equal 1, TotalSummary.sum(:views)
+    assert_equal 1, total_summary.sum(:views)
   ensure
     release << :go if defined?(release) && release
     writer.join(5) if defined?(writer) && writer
     deleter.join(5) if defined?(deleter) && deleter
-    drop_extra("rs_logs_spec_totals", "TotalSummary")
+    drop_extra("rs_logs_spec_totals")
   end
 
   def test_cleanup_rechecks_the_month_while_holding_the_aggregation_lock
@@ -383,7 +383,6 @@ class LogsPostgresTest < Minitest::Test
     connection = ActiveRecord::Base.connection
     connection.drop_table("rs_logs_spec_plain_counts", if_exists: true)
     connection.drop_table("rs_logs_spec_plain", if_exists: true)
-    %w[PlainLog PlainCount].each { |name| self.class.send(:remove_const, name) if self.class.const_defined?(name) }
   end
 
   def test_catalog_reports_registered_logs_and_aggregations
@@ -509,7 +508,7 @@ class LogsPostgresTest < Minitest::Test
     end
   end
 
-  def test_metrics_sums_seven_views_on_that_day_and_leaves_a_gap_empty
+  def test_metrics_sums_seven_views_on_that_day_and_fills_a_gap_with_zero
     require "recording_studio_metrics"
     day = Date.new(2026, 10, 14)
     root_id = SecureRandom.uuid
@@ -522,20 +521,25 @@ class LogsPostgresTest < Minitest::Test
     result = RecordingStudioMetrics.execute(
       "presskits_press_kit_views.views",
       context: RecordingStudioMetrics::Context.new(
-        scope: :root, system: true, workspace_id: root_id, timezone: "America/Los_Angeles",
+        scope: :root, system: true,
+        root_recording: Struct.new(:id, :recordable_id).new(root_id, SecureRandom.uuid),
+        timezone: "America/Los_Angeles",
         timestamp: Time.utc(2026, 10, 16, 12)
       ),
       start_at: Time.utc(2026, 10, 14), end_at: Time.utc(2026, 10, 16), interval: :day
     )
-    assert_equal([["2026-10-14", 7]], result.data.map { |point| [point[:date], point[:value].to_i] })
-    refute(result.data.any? { |point| point[:value].nil? || point[:value].to_i.zero? })
+    assert_equal(
+      [["2026-10-14", 7], ["2026-10-15", 0]],
+      result.data.map { |point| [point[:date], point[:value].to_i] }
+    )
     definition = RecordingStudioMetrics.find("presskits_press_kit_views.views")
     assert_equal "count", definition.unit
     assert_equal "utc_day_rollup", definition.semantics
     assert_equal "UTC", definition.bucket_timezone
-    assert_equal false, definition.fill_gaps
+    assert_equal true, definition.fill_gaps
     assert_equal :root_recording_id, definition.scope_attribute
-    assert_equal "Fresh UTC-day rollup of views. A day with no summary is empty.", definition.description
+    assert_equal :root_recording_id, definition.scope_value
+    assert_equal "Fresh UTC-day rollup of views. Empty days are zero.", definition.description
   end
 
   def test_metrics_follow_the_root_recording_when_its_id_differs_from_the_recordable
@@ -546,11 +550,12 @@ class LogsPostgresTest < Minitest::Test
     RecordingStudioLogs.aggregate_day!(day)
     RecordingStudioLogs.finalize!
     root = Struct.new(:id, :recordable_id).new(root_id, SecureRandom.uuid)
+    refute_equal root.id, root.recordable_id
 
     result = RecordingStudioMetrics.execute(
       "presskits_press_kit_views.views",
       context: RecordingStudioMetrics::Context.new(
-        scope: :root, system: true, root_recording: root, workspace_id: root_id, timezone: "UTC",
+        scope: :root, system: true, root_recording: root, timezone: "UTC",
         timestamp: Time.utc(2026, 10, 16, 12)
       ),
       start_at: Time.utc(2026, 10, 14), end_at: Time.utc(2026, 10, 16), interval: :day
@@ -597,7 +602,7 @@ class LogsPostgresTest < Minitest::Test
     assert_equal :request_method, by_method.group_by
   ensure
     RecordingStudioMetrics.configuration.min_group_size = previous if previous
-    drop_extra(table, :ApiRequestRow)
+    drop_extra(table)
   end
 
   def test_logs_metrics_still_reject_unsupported_group_by
@@ -676,7 +681,7 @@ class LogsPostgresTest < Minitest::Test
     assert RecordingStudioLogs::Partitioning::Catalog.exists?(table, name)
     assert_equal 1, bare.count
   ensure
-    drop_extra(table, "BareLog")
+    drop_extra(table)
   end
 
   def test_a_late_row_without_created_at_keeps_the_month
@@ -708,8 +713,7 @@ class LogsPostgresTest < Minitest::Test
     assert_equal 1, source.count
   ensure
     ActiveRecord::Base.connection.drop_table(summary_name, if_exists: true) if defined?(summary_name)
-    drop_extra(table, "ArrivalLog") if defined?(table)
-    self.class.send(:remove_const, "ArrivalCount") if self.class.const_defined?("ArrivalCount", false)
+    drop_extra(table) if defined?(table)
   end
 
   def test_non_partitioned_cleanup_deletes_only_days_a_success_covers
@@ -753,9 +757,6 @@ class LogsPostgresTest < Minitest::Test
     connection = ActiveRecord::Base.connection
     connection.drop_table("rs_logs_spec_plain_day_counts", if_exists: true)
     connection.drop_table("rs_logs_spec_plain_days", if_exists: true)
-    %w[PlainDayLog PlainDayCount].each do |name|
-      self.class.send(:remove_const, name) if self.class.const_defined?(name)
-    end
   end
 
   def test_table_stats_size_query_runs_against_postgres
@@ -923,9 +924,7 @@ class LogsPostgresTest < Minitest::Test
 
   def register_later_consumer
     create_summary("rs_logs_spec_later_counts")
-    model = self.class.const_set(:LaterCount, Class.new(ActiveRecord::Base) do
-      self.table_name = "rs_logs_spec_later_counts"
-    end)
+    model = named_model("LaterCount", "rs_logs_spec_later_counts")
     RecordingStudioLogs.aggregate(
       source: ViewLog, name: "host/later_views", summary_model: model,
       group_by: [:root_recording_id], measurements: { views: :count }, owner: "Host"
@@ -941,19 +940,19 @@ class LogsPostgresTest < Minitest::Test
       table.integer :views, null: false, default: 0
       table.timestamps
     end
-    model = self.class.const_set(:TotalSummary, Class.new(ActiveRecord::Base) do
-      self.table_name = "rs_logs_spec_totals"
-    end)
+    model = named_model("TotalSummary", "rs_logs_spec_totals")
     RecordingStudioLogs.aggregate(
       source: ViewLog, name: "host/all_views", summary_model: model,
       group_by: [:resource_type], measurements: { views: :count }, owner: "Host"
     )
   end
 
-  def drop_extra(table_name, constant)
+  def total_summary
+    RecordingStudioLogs.registry.aggregation("host/all_views").summary_model
+  end
+
+  def drop_extra(table_name)
     ActiveRecord::Base.connection.drop_table(table_name, if_exists: true)
-  ensure
-    self.class.send(:remove_const, constant) if self.class.const_defined?(constant, false)
   end
 
   def wait_for_advisory_wait
@@ -1002,7 +1001,10 @@ class LogsPostgresTest < Minitest::Test
   end
 
   def named_model(name, table_name)
-    self.class.const_set(name, Class.new(ActiveRecord::Base) { self.table_name = table_name })
+    Class.new(ActiveRecord::Base) do
+      define_singleton_method(:name) { name.to_s }
+      self.table_name = table_name
+    end
   end
 
   def reset_registry!

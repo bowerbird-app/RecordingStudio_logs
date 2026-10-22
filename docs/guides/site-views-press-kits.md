@@ -27,7 +27,7 @@ When `RecordingStudioMetrics` is loaded, a rooted `count` or `sum` becomes a tim
 result = RecordingStudioMetrics.execute(
   "presskits_press_kit_views.views",
   context: RecordingStudioMetrics::Context.new(
-    scope: :root, system: true, workspace_id: root_id, timezone: "America/Los_Angeles",
+    scope: :root, system: true, root_recording: root, timezone: "America/Los_Angeles",
     timestamp: Time.utc(2026, 10, 16, 12)
   ),
   start_at: Time.utc(2026, 10, 14),
@@ -36,6 +36,6 @@ result = RecordingStudioMetrics.execute(
 )
 ```
 
-Seven kit views on 14 October UTC read as 7 on that date. A day with no summary row stays empty. The reporting time zone does not move the view to 13 October. See [Log semantics](../semantics.md).
+Seven kit views on 14 October UTC read as 7 on that date. A day with no summary row comes back as zero. The caller's time zone does not move the view to 13 October. See [Log semantics](../semantics.md).
 
 The dummy test is `test/dummy/test/integration/logs_demonstration_test.rb`.

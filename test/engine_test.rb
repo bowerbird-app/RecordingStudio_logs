@@ -6,13 +6,19 @@ require "tmpdir"
 
 class EngineTest < Minitest::Test
   def setup
-    @original_configuration = RecordingStudioLogs.instance_variable_get(:@configuration)
-    RecordingStudioLogs.instance_variable_set(:@configuration, RecordingStudioLogs::Configuration.new)
+    @original_months_ahead = RecordingStudioLogs.configuration.months_ahead
+    @original_reconciliation_days = RecordingStudioLogs.configuration.reconciliation_days
+    RecordingStudioLogs.configuration.months_ahead = 2
+    RecordingStudioLogs.configuration.reconciliation_days = 3
+    RecordingStudioLogs.configuration.clear_retention_overrides!
+    RecordingStudioLogs.configuration.hooks.clear!
   end
 
   def teardown
+    RecordingStudioLogs.configuration.months_ahead = @original_months_ahead
+    RecordingStudioLogs.configuration.reconciliation_days = @original_reconciliation_days
+    RecordingStudioLogs.configuration.clear_retention_overrides!
     RecordingStudioLogs.configuration.hooks.clear!
-    RecordingStudioLogs.instance_variable_set(:@configuration, @original_configuration)
   end
 
   def test_before_and_after_initialize_initializers_run_hooks
@@ -129,6 +135,17 @@ class EngineTest < Minitest::Test
 
     assert_equal 2, RecordingStudioLogs.configuration.months_ahead
     assert_equal 3, RecordingStudioLogs.configuration.reconciliation_days
+  end
+
+  def test_load_config_skips_a_nil_yaml_path
+    app = Struct.new(:config, :root).new(Struct.new(:x).new(nil), nil)
+    def app.config_for(_name)
+      flunk "config_for should not run when the yaml path is nil"
+    end
+
+    find_initializer("recording_studio_logs.load_config").block.call(app)
+
+    assert_equal 2, RecordingStudioLogs.configuration.months_ahead
   end
 
   def test_engine_does_not_extend_host_models_or_controllers

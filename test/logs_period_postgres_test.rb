@@ -239,9 +239,10 @@ class LogsPeriodPostgresTest < Minitest::Test
       table.string :resource_type, null: false
       table.timestamps
     end
-    plain = self.class.const_set(:PlainHourLog, Class.new(ActiveRecord::Base) do
+    plain = Class.new(ActiveRecord::Base) do
+      def self.name = "PlainHourLog"
       self.table_name = "rs_logs_period_plain"
-    end)
+    end
     RecordingStudioLogs.reset!
     RecordingStudioLogs.register(
       model: plain, timestamp_column: :occurred_at, partition_interval: nil, retention: 1.hour,
@@ -264,7 +265,6 @@ class LogsPeriodPostgresTest < Minitest::Test
     assert_equal 0, plain.count
   ensure
     ActiveRecord::Base.connection.drop_table(:rs_logs_period_plain, if_exists: true)
-    self.class.send(:remove_const, :PlainHourLog) if self.class.const_defined?(:PlainHourLog, false)
   end
 
   def test_owner_deletion_rebuilds_an_unscoped_hour_summary
@@ -302,9 +302,10 @@ class LogsPeriodPostgresTest < Minitest::Test
       table.integer :views, null: false, default: 0
       table.timestamps
     end
-    totals = self.class.const_set(:PeriodTotalSummary, Class.new(ActiveRecord::Base) do
+    totals = Class.new(ActiveRecord::Base) do
+      def self.name = "PeriodTotalSummary"
       self.table_name = "rs_logs_period_totals"
-    end)
+    end
     RecordingStudioLogs.aggregate(
       source: ViewLog, name: "host/all_days", summary_model: totals,
       group_by: [:resource_type], measurements: { views: :count }, owner: "Host totals"
@@ -330,7 +331,6 @@ class LogsPeriodPostgresTest < Minitest::Test
     assert_equal 1, totals.where(day: Date.new(2026, 10, 14), resource_type: "PressKit").sum(:views)
   ensure
     connection.drop_table(:rs_logs_period_totals, if_exists: true)
-    self.class.send(:remove_const, :PeriodTotalSummary) if self.class.const_defined?(:PeriodTotalSummary, false)
   end
 
   def test_upgrade_renames_day_to_period_start

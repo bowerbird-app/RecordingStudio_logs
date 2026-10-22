@@ -49,7 +49,8 @@ module RecordingStudioLogs
       RecordingStudioMetrics.register(
         definition.metrics_resource,
         model: definition.summary_model,
-        scope_attribute: definition.log.root_column
+        scope_attribute: :root_recording_id,
+        scope_value: :root_recording_id
       ) { rows.each { |name, options| timeseries(name, **options) } }
     end
 
@@ -57,8 +58,8 @@ module RecordingStudioLogs
       {
         field: :day, measurement: :sum, value_field: item.name, title: item.name.to_s.humanize,
         unit: item.operation == :count ? "count" : item.operation.to_s,
-        description: "Fresh UTC-day rollup of #{item.name}. A day with no summary is empty.",
-        semantics: "utc_day_rollup", bucket_timezone: "UTC", fill_gaps: false
+        description: "Fresh UTC-day rollup of #{item.name}. Empty days are zero.",
+        semantics: "utc_day_rollup", bucket_timezone: "UTC", fill_gaps: true
       }
     end
   end

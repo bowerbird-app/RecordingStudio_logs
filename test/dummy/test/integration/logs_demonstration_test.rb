@@ -67,24 +67,27 @@ class LogsDemonstrationTest < ActiveSupport::TestCase
     ActiveRecord::Base.connection.drop_table(table, if_exists: true)
   end
 
-  test "seven views stay on that utc day and a missing day stays empty" do
+  test "seven views stay on that utc day and a missing day is zero" do
     day = Date.new(2026, 10, 14)
     root_id = SecureRandom.uuid
     recording_id = SecureRandom.uuid
     7.times { insert_view(day, "PressKit", root_id, recording_id) }
     RecordingStudioLogs.aggregate_day!(day)
+    root = Struct.new(:id, :recordable_id).new(root_id, SecureRandom.uuid)
     result = RecordingStudioMetrics.execute(
       "presskits_press_kit_views.views",
       context: RecordingStudioMetrics::Context.new(
-        scope: :root, system: true, workspace_id: root_id, timezone: "America/Los_Angeles",
+        scope: :root, system: true, root_recording: root, timezone: "America/Los_Angeles",
         timestamp: Time.utc(2026, 10, 16, 12)
       ),
       start_at: Time.utc(2026, 10, 14),
       end_at: Time.utc(2026, 10, 16),
       interval: :day
     )
-    assert_equal [["2026-10-14", 7]], result.data.map { |point| [point[:date], point[:value].to_i] }
-    refute result.data.any? { |point| point[:value].nil? || point[:value].to_i.zero? }
+    assert_equal(
+      [["2026-10-14", 7], ["2026-10-15", 0]],
+      result.data.map { |point| [point[:date], point[:value].to_i] }
+    )
   end
 
   test "download counts stay on their own indefinite log" do

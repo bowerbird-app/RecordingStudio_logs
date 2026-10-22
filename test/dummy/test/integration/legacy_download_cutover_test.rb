@@ -119,12 +119,8 @@ class LegacyDownloadCutoverTest < ActiveSupport::TestCase
   end
 
   def forget_cutover_registration
-    registry = RecordingStudioLogs.registry
-    mutex = registry.instance_variable_get(:@mutex)
-    mutex.synchronize do
-      registry.instance_variable_get(:@aggregations).delete("downloadable/legacy_cutover")
-      registry.instance_variable_get(:@logs).delete("LegacyPartitionedDownloadLog")
-    end
+    RecordingStudioLogs.reset!
+    load Rails.root.join("config/initializers/recording_studio_logs.rb")
   end
 
   def cleanup_cutover_tables

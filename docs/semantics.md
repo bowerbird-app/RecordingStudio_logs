@@ -46,7 +46,7 @@ The raw row stores the parent or root you wrote at insert time. Moving a page or
 
 A default summary day is a UTC half-open window, from midnight UTC up to the next midnight. Hour buckets count from a fixed UTC epoch (1970-01-01T00Z), so `every:` values that divide 24 line up with midnight and others (e.g. every: 5) run continuously across days. Weeks start on Monday. Months align to January. Jobs, retention, and rebuilds use the same period start.
 
-Metrics may accept a reporting time zone on execute. That zone does not regroup stored days. A view at 22:00 in Los Angeles on 13 October still sits on 14 October UTC. Empty days stay empty. Do not also `group_by` the timestamp. Metrics still publish only default daily summaries.
+Metrics may accept a reporting time zone on execute. Logs series ignore it. Buckets stay on the stored UTC day. A view at 22:00 in Los Angeles on 13 October still sits on 14 October UTC. Empty days come back as zeros. Do not also `group_by` the timestamp. Metrics still publish only default daily summaries.
 
 ## Mixed retention
 
