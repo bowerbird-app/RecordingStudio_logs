@@ -5,6 +5,10 @@ module RecordingStudioLogs
     include Aggregation::DefinitionPeriod
 
     NAME_PATTERN = %r{\A[a-z0-9_]+/[a-z0-9_]+\z}
+    KEYS = %i[
+      source summary_model name filter group_by measurements owner
+      interval period every period_column count count_after include_current
+    ].freeze
 
     attr_reader :name, :source, :summary, :filter, :group_by, :measurements, :owner, :period_options
 
@@ -12,15 +16,13 @@ module RecordingStudioLogs
              :calendar_day?, :live_count?, :scheduled_starts, :reconciliation_starts,
              to: :period_options
 
-    def initialize(source:, name:, summary_model:, filter: {}, group_by: [], measurements: {}, # rubocop:disable Metrics/ParameterLists
-                   interval: nil, period: :day, every: 1, period_column: :day, count: :scheduled,
-                   count_after: 0, include_current: false, owner: nil)
-      @source = ModelReference.new(source)
-      @summary = ModelReference.new(summary_model)
-      assign_shape(name, filter, group_by, measurements, owner)
-      @period_options = Aggregation::PeriodOptions.parse(
-        interval:, period:, every:, period_column:, count:, count_after:, include_current:
-      )
+    def initialize(**attributes)
+      attributes.assert_valid_keys(*KEYS)
+      @source = ModelReference.new(attributes.fetch(:source))
+      @summary = ModelReference.new(attributes.fetch(:summary_model))
+      assign_shape(attributes.fetch(:name), attributes.fetch(:filter, {}),
+                   attributes.fetch(:group_by, []), attributes.fetch(:measurements, {}), attributes[:owner])
+      @period_options = period_options_from(attributes)
       validate_shape!
     end
 
@@ -62,6 +64,15 @@ module RecordingStudioLogs
     end
 
     private
+
+    def period_options_from(attributes)
+      Aggregation::PeriodOptions.parse(
+        interval: attributes[:interval], period: attributes.fetch(:period, :day),
+        every: attributes.fetch(:every, 1), period_column: attributes.fetch(:period_column, :day),
+        count: attributes.fetch(:count, :scheduled), count_after: attributes.fetch(:count_after, 0),
+        include_current: attributes.fetch(:include_current, false)
+      )
+    end
 
     def assign_shape(name, filter, group_by, measurements, owner)
       @name = name.to_s

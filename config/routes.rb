@@ -1,5 +1,5 @@
 # frozen_string_literal: true
 
 RecordingStudioLogs::Engine.routes.draw do
-  root "home#index"
+  # Logs is partitioning and aggregation. Hosts mount jobs and Admin; there is no browser page.
 end

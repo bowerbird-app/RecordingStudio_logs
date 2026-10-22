@@ -27,13 +27,12 @@ class LogsRegistryTest < Minitest::Test
   end
 
   def setup
-    @original = RecordingStudioLogs.registry
-    RecordingStudioLogs.instance_variable_set(:@registry, RecordingStudioLogs::Registry.new)
+    RecordingStudioLogs.reset!
     RecordingStudioLogs.configuration.clear_retention_overrides!
   end
 
   def teardown
-    RecordingStudioLogs.instance_variable_set(:@registry, @original)
+    RecordingStudioLogs.reset!
     RecordingStudioLogs.configuration.clear_retention_overrides!
   end
 
@@ -285,6 +284,23 @@ class LogsRegistryTest < Minitest::Test
     RecordingStudioLogs.register(model: DownloadLog, timestamp_column: :occurred_at, partition_interval: nil)
 
     refute RecordingStudioLogs.logs.first.partitioned?
+  end
+
+  def test_unknown_register_key_is_rejected
+    assert_raises(ArgumentError) do
+      RecordingStudioLogs.register(model: DownloadLog, timestamp_column: :occurred_at, mystery: true)
+    end
+  end
+
+  def test_unknown_aggregate_key_is_rejected
+    register_views
+
+    assert_raises(ArgumentError) do
+      RecordingStudioLogs.aggregate(
+        source: ViewLog, name: "presskits/press_kit_views", summary_model: PressKitSummary,
+        measurements: { views: :count }, mystery: true
+      )
+    end
   end
 
   private

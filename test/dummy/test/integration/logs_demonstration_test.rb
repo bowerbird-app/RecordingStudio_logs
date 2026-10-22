@@ -30,12 +30,13 @@ class LogsDemonstrationTest < ActiveSupport::TestCase
     previous = RecordingStudioMetrics.configuration.min_group_size
     table = "rs_dummy_api_requests"
     context = RecordingStudioMetrics::Context.new(
-      scope: :root, system: true, workspace_id: SecureRandom.uuid, timezone: "UTC"
+      scope: :root, system: true,
+      root_recording: Struct.new(:id, :recordable_id).new(SecureRandom.uuid, SecureRandom.uuid),
+      timezone: "UTC"
     )
-    error = assert_raises(RecordingStudioMetrics::Errors::InvalidFilter) do
+    assert_raises(RecordingStudioMetrics::Errors::InvalidGroupBy) do
       RecordingStudioMetrics.execute("presskits_press_kit_views.views", context: context, group_by: "route_name")
     end
-    assert_equal "group_by is not supported", error.message
 
     connection = ActiveRecord::Base.connection
     connection.create_table table, id: :uuid, force: true do |t|
@@ -68,26 +69,27 @@ class LogsDemonstrationTest < ActiveSupport::TestCase
     ActiveRecord::Base.connection.drop_table(table, if_exists: true)
   end
 
-  test "seven views stay on that utc day and a missing day stays empty" do
+  test "seven views stay on that utc day and a missing day is zero" do
     day = Date.new(2026, 10, 14)
     root_id = SecureRandom.uuid
     recording_id = SecureRandom.uuid
     7.times { insert_view(day, "PressKit", root_id, recording_id) }
     RecordingStudioLogs.aggregate_day!(day)
+    root = Struct.new(:id, :recordable_id).new(root_id, SecureRandom.uuid)
     result = RecordingStudioMetrics.execute(
       "presskits_press_kit_views.views",
       context: RecordingStudioMetrics::Context.new(
-        scope: :root, system: true, workspace_id: root_id, timezone: "America/Los_Angeles",
+        scope: :root, system: true, root_recording: root, timezone: "America/Los_Angeles",
         timestamp: Time.utc(2026, 10, 16, 12)
       ),
       start_at: Time.utc(2026, 10, 14),
       end_at: Time.utc(2026, 10, 16),
       interval: :day
     )
-    filled = result.data.select { |point| point[:value] }
-
-    assert_equal [["2026-10-14", 7]], filled.map { |point| [point[:date], point[:value].to_i] }
-    assert result.data.any? { |point| point[:value].nil? }
+    assert_equal(
+      [["2026-10-14", 7], ["2026-10-15", 0]],
+      result.data.map { |point| [point[:date], point[:value].to_i] }
+    )
   end
 
   test "download counts stay on their own indefinite log" do

@@ -1,6 +1,6 @@
 # RecordingStudioLogs
 
-Shared PostgreSQL logging for Recording Studio gems. A producing gem stores high-volume rows in its own table. Other gems register summaries over the columns that producer allows, with configurable periods (daily by default). RecordingStudio_metrics stays the query API. This gem does not depend on it.
+Shared PostgreSQL logging for Recording Studio gems. A producing gem stores high-volume rows in its own table. Other gems register summaries over the columns that producer allows, with configurable periods (daily by default). RecordingStudio_metrics stays the query API (`~> 0.6.1`). Summaries still write when Metrics is not loaded.
 
 Logs are exhaust. They are not recordings, and they are not `log_event!` history.
 
@@ -87,7 +87,7 @@ Call `RecordingStudioLogs.finalize!` at the end of the initializer that register
 
 Summary tables are ordinary ActiveRecord models. Read them directly when metrics is not installed.
 
-When `RecordingStudioMetrics` is loaded, a summary that is ready, groups by the log's root column, and has a count or sum is registered as a timeseries. Only count and sum are published. Do not extend Metrics from this gem. Average, minimum, and maximum stay on the summary table. The metric sums the stored daily column and is scoped to the root recording's id. The series is a fresh UTC-day rollup. A day with no summary stays empty. The resource name is the aggregation name with `/` replaced by `_`. This gem still writes summaries when metrics is absent. A bad timezone or a bad `start_at` raises a metrics input error. `group_by` on a Logs-published timeseries also raises a metrics input error. Metrics registered by other gems keep the `group_by` dimensions they declared.
+When `RecordingStudioMetrics` is loaded, a summary that is ready, groups by the log's root column, and has a count or sum is registered as a timeseries through the public Metrics `register` API. Only count and sum are published. Do not extend Metrics from this gem. Average, minimum, and maximum stay on the summary table. The metric sums the stored daily column and is scoped with `scope_attribute` set to the log's root column and `scope_value: :root_recording_id`. Pass `root_recording:` on the Metrics context. The series is a fresh UTC-day rollup (`bucket_timezone: "UTC"`, `fill_gaps: true`). Empty days come back as zeros. The caller's timezone is ignored. The resource name is the aggregation name with `/` replaced by `_`. This gem still writes summaries when metrics is absent. A bad timezone or a bad `start_at` raises a metrics input error. `group_by` on a Logs-published timeseries raises `InvalidGroupBy`. Metrics registered by other gems keep the `group_by` dimensions they declared. Needs Metrics `~> 0.6.1`.
 
 ## Retention and owner deletion
 
@@ -131,6 +131,7 @@ Dummy pins:
 - dummy GitHub tag `v0.18.0` for Accessible
 - dummy GitHub tag `v0.11.0` for Trashable
 - dummy GitHub tag `v0.9.0` for Root Switchable
+- dummy GitHub tag `v0.6.1` for Metrics
 - dummy GitHub tag `v0.1.196` for Flatpack
 
 Boot instructions live in `.cursor/install.sh` and `test/dummy/README.md`. Sign in at `/users/sign_in` with `admin@admin.com` / `Password`.

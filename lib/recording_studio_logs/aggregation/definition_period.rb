@@ -11,10 +11,6 @@ module RecordingStudioLogs
         period.every
       end
 
-      def day_for(time)
-        period.start_for(time).to_date
-      end
-
       def period_start_for(time)
         period.start_for(time)
       end

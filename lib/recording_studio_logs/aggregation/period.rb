@@ -59,7 +59,7 @@ module RecordingStudioLogs
         [start, finish(start)]
       end
 
-      def utc_time(value)
+      def self.utc_time(value)
         case value
         when Time then value.utc
         when Date then Time.utc(value.year, value.month, value.day)
@@ -67,6 +67,10 @@ module RecordingStudioLogs
           time = value.respond_to?(:to_time) ? value.to_time : Time.parse(value.to_s)
           time.utc
         end
+      end
+
+      def utc_time(value)
+        self.class.utc_time(value)
       end
 
       private

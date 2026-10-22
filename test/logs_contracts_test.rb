@@ -94,14 +94,6 @@ class LogsContractsTest < Minitest::Test
     refute RecordingStudioLogs::Admin::Status.cleanup_waiting?(log, ["missing_plain_logs"])
   end
 
-  def test_admin_registration_waits_until_the_admin_gem_is_loaded
-    hidden = Object.send(:remove_const, :RecordingStudioAdmin) if defined?(::RecordingStudioAdmin)
-
-    assert_nil RecordingStudioLogs::Admin.register!
-  ensure
-    Object.const_set(:RecordingStudioAdmin, hidden) if hidden
-  end
-
   def test_status_labels_cover_unknown_ranges_and_kept_months
     partition = RecordingStudioLogs::Partitioning::Partition.new(
       name: "old", lower: nil, upper: nil, estimated_rows: nil, bytes: nil

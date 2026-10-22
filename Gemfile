@@ -19,7 +19,7 @@ group :development, :test do
   gem "pg", "~> 1.1"
   gem "recording_studio_accessible", github: "bowerbird-app/RecordingStudio_accessible", tag: "v0.18.0", require: false
   gem "recording_studio_admin", github: "bowerbird-app/RecordingStudio_admin", tag: "v2.3.2", require: false
-  gem "recording_studio_metrics", github: "bowerbird-app/RecordingStudio_metrics", tag: "v0.4.0", require: false
+  gem "recording_studio_metrics", github: "bowerbird-app/RecordingStudio_metrics", tag: "v0.6.1", require: false
   gem "recording_studio_trashable", github: "bowerbird-app/RecordingStudio_trashable", tag: "v0.11.0", require: false
   gem "simplecov", require: false
 end

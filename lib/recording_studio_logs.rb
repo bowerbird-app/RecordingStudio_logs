@@ -46,7 +46,6 @@ require "recording_studio_logs/aggregation/count_trigger"
 require "recording_studio_logs/aggregation/statement"
 require "recording_studio_logs/aggregation/runner"
 require "recording_studio_logs/aggregation/scheduler"
-require "recording_studio_logs/metrics_boundary"
 require "recording_studio_logs/metrics_bridge"
 require "recording_studio_logs/ensures_partition"
 require "recording_studio_logs/jobs"
@@ -91,6 +90,7 @@ module RecordingStudioLogs
     end
 
     def reset!
+      # Clears log and aggregation registrations. Does not touch configuration or Metrics.
       registry.reset!
     end
 

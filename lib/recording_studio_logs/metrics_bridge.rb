@@ -2,7 +2,7 @@
 
 module RecordingStudioLogs
   # Optional. When RecordingStudioMetrics is loaded, daily summary columns
-  # become timeseries metrics. This gem does not depend on metrics.
+  # become timeseries metrics. This gem does not reopen Metrics classes.
   module MetricsBridge
     PUBLISHED = %i[count sum].freeze
 
@@ -11,18 +11,7 @@ module RecordingStudioLogs
     def register!
       return unless defined?(::RecordingStudioMetrics)
 
-      install_summary_series!
-      MetricsBoundary.install!
       RecordingStudioLogs.aggregations.each { |definition| register_one(definition) }
-    end
-
-    def install_summary_series!
-      return unless defined?(RecordingStudioMetrics::Calculators::Timeseries)
-
-      calculator = RecordingStudioMetrics::Calculators::Timeseries
-      return if calculator.ancestors.include?(SummarySeries)
-
-      calculator.prepend(SummarySeries)
     end
 
     def register_one(definition)
@@ -50,54 +39,26 @@ module RecordingStudioLogs
     end
 
     def reloading?
-      Rails.application.config.cache_classes == false
-    rescue StandardError
-      false
+      Rails.application&.config&.cache_classes == false
     end
 
     def register_resource(definition)
-      rows = published_measurements(definition)
-      options = series_options
+      rows = published_measurements(definition).map { |item| [item.name, series_options(item)] }
       RecordingStudioMetrics.register(
         definition.metrics_resource,
-        model: definition.summary_model
-      ) { rows.each { |item| timeseries(item.name, **options.call(item)) } }
+        model: definition.summary_model,
+        scope_attribute: definition.log.root_column,
+        scope_value: :root_recording_id
+      ) { rows.each { |name, options| timeseries(name, **options) } }
     end
 
-    def series_options
-      lambda { |item|
-        {
-          field: :day, measurement: :sum, value_field: item.name, title: item.name.to_s.humanize,
-          unit: item.operation == :count ? "count" : item.operation.to_s,
-          description: "Fresh UTC-day rollup of #{item.name}. A day with no summary is empty.",
-          semantics: "utc_day_rollup"
-        }
+    def series_options(item)
+      {
+        field: :day, measurement: :sum, value_field: item.name, title: item.name.to_s.humanize,
+        unit: item.operation == :count ? "count" : item.operation.to_s,
+        description: "Fresh UTC-day rollup of #{item.name}. Empty days are zero.",
+        semantics: "utc_day_rollup", bucket_timezone: "UTC", fill_gaps: true
       }
-    end
-
-    module SummarySeries
-      def fill_missing?(_measurement)
-        summary_day? ? false : super
-      end
-
-      def truncation_sql(window)
-        summary_day? ? day_sql(window) : super
-      end
-
-      def summary_day?
-        model = relation.klass
-        definition.field.to_s == "day" && RecordingStudioLogs.aggregations.any? do |item|
-          item.summary_model == model
-        end
-      end
-
-      def day_sql(window)
-        connection = relation.klass.connection
-        table = relation.klass.quoted_table_name
-        column = connection.quote_column_name(definition.field)
-        interval = connection.quote(window.pg_interval)
-        "date_trunc(#{interval}, #{table}.#{column}::timestamp)::date"
-      end
     end
   end
 end

@@ -63,7 +63,7 @@ class LegacyDownloadCutoverTest < ActiveSupport::TestCase
     register_cutover_models
     RecordingStudioLogs.aggregate_day!(day)
 
-    assert_equal before, LegacyDownloadCount.sum(:views)
+    assert_equal before, @legacy_download_count.sum(:views)
 
     connection.drop_table(DEST, if_exists: true, force: :cascade)
     assert_equal before, LegacyDownloadLog.count
@@ -95,36 +95,32 @@ class LegacyDownloadCutoverTest < ActiveSupport::TestCase
   end
 
   def register_cutover_models
-    unless defined?(LegacyPartitionedDownloadLog)
-      Object.const_set(:LegacyPartitionedDownloadLog, Class.new(ApplicationRecord) do
-        self.table_name = DEST
-        self.primary_key = %i[id occurred_at]
-      end)
+    @legacy_partitioned_download_log = Class.new(ApplicationRecord) do
+      def self.name = "LegacyPartitionedDownloadLog"
+      self.table_name = DEST
+      self.primary_key = %i[id occurred_at]
     end
-    unless defined?(LegacyDownloadCount)
-      Object.const_set(:LegacyDownloadCount, Class.new(ApplicationRecord) { self.table_name = SUMMARY })
+    @legacy_download_count = Class.new(ApplicationRecord) do
+      def self.name = "LegacyDownloadCount"
+      self.table_name = SUMMARY
     end
     RecordingStudioLogs.register(
-      model: LegacyPartitionedDownloadLog, timestamp_column: :occurred_at, root_column: :root_recording_id,
+      model: @legacy_partitioned_download_log, timestamp_column: :occurred_at, root_column: :root_recording_id,
       owner: "Downloads", aggregatable: {
         root_recording_id: { filter: [:eq], group: true },
         recording_id: { filter: [:eq], group: true }
       }
     )
     RecordingStudioLogs.aggregate(
-      source: LegacyPartitionedDownloadLog, name: "downloadable/legacy_cutover",
-      summary_model: LegacyDownloadCount,
+      source: @legacy_partitioned_download_log, name: "downloadable/legacy_cutover",
+      summary_model: @legacy_download_count,
       group_by: %i[root_recording_id recording_id], measurements: { views: :count }, owner: "Downloads"
     )
   end
 
   def forget_cutover_registration
-    registry = RecordingStudioLogs.registry
-    mutex = registry.instance_variable_get(:@mutex)
-    mutex.synchronize do
-      registry.instance_variable_get(:@aggregations).delete("downloadable/legacy_cutover")
-      registry.instance_variable_get(:@logs).delete("LegacyPartitionedDownloadLog")
-    end
+    RecordingStudioLogs.reset!
+    load Rails.root.join("config/initializers/recording_studio_logs.rb")
   end
 
   def cleanup_cutover_tables

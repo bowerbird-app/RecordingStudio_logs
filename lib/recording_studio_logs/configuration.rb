@@ -29,7 +29,7 @@ module RecordingStudioLogs
         months_ahead: months_ahead,
         reconciliation_days: reconciliation_days,
         retention_overrides: @retention_overrides.keys,
-        hooks_registered: hooks.instance_variable_get(:@registry).transform_values(&:size)
+        hooks_registered: hooks.registered_counts
       }
     end
 
