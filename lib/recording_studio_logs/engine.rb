@@ -11,7 +11,7 @@ module RecordingStudioLogs
     initializer "recording_studio_logs.load_config" do |app|
       if app.respond_to?(:config_for)
         path = Engine.yaml_config_path(app)
-        unless path.nil? || !File.exist?(path)
+        if path && File.exist?(path)
           yaml = app.config_for(:recording_studio_logs)
           RecordingStudioLogs.configuration.merge!(yaml) if yaml.respond_to?(:each)
         end
@@ -41,12 +41,7 @@ module RecordingStudioLogs
       end
 
       def merge_x_config(xcfg)
-        return RecordingStudioLogs.configuration.merge!(xcfg.to_h) if xcfg.respond_to?(:to_h)
-        return unless xcfg.respond_to?(:each_pair)
-
-        hash = {}
-        xcfg.each_pair { |key, value| hash[key] = value }
-        RecordingStudioLogs.configuration.merge!(hash) if hash.any?
+        RecordingStudioLogs.configuration.merge!(xcfg.to_h) if xcfg.respond_to?(:to_h)
       end
 
       def yaml_config_path(app)

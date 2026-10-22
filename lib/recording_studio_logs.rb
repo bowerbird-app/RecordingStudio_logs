@@ -90,6 +90,7 @@ module RecordingStudioLogs
     end
 
     def reset!
+      # Clears log and aggregation registrations. Does not touch configuration or Metrics.
       registry.reset!
     end
 

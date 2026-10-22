@@ -2,9 +2,11 @@
 
 require "test_helper"
 require "recording_studio_metrics"
-require "uri"
+require "support/postgres_connection"
 
 class MetricsBridgeTest < Minitest::Test
+  include LogsPostgresConnection
+
   TABLE = "rs_logs_bridge_views"
   SUMMARY = "rs_logs_bridge_counts"
 
@@ -42,6 +44,7 @@ class MetricsBridgeTest < Minitest::Test
     assert_empty RecordingStudioMetrics.for_resource(:host_boot_views)
   ensure
     RecordingStudioLogs.reset!
+    RecordingStudioMetrics.registry.reset!
     restore_connection(previous)
   end
 
@@ -50,7 +53,6 @@ class MetricsBridgeTest < Minitest::Test
       root_id = SecureRandom.uuid
       BridgeView.create!(occurred_at: Time.utc(2026, 10, 14, 12), root_recording_id: root_id)
       RecordingStudioLogs.aggregate_day!(Date.new(2026, 10, 14))
-      RecordingStudioLogs.finalize!
       root = Struct.new(:id, :recordable_id).new(root_id, SecureRandom.uuid)
       result = RecordingStudioMetrics.execute(
         "host_bridge_views.views",
@@ -66,6 +68,74 @@ class MetricsBridgeTest < Minitest::Test
         result.data.map { |point| [point[:date], point[:value].to_i] }
       )
     end
+  end
+
+  def test_rooted_series_uses_the_log_root_column
+    connect!
+    table = "rs_logs_bridge_workspace_views"
+    summary = "rs_logs_bridge_workspace_counts"
+    connection = ActiveRecord::Base.connection
+    RecordingStudioLogs::Schema.install_runs!(connection)
+    connection.create_table table, id: :uuid, force: true do |t|
+      t.datetime :occurred_at, null: false
+      t.uuid :workspace_id
+      t.timestamps
+    end
+    connection.create_table summary, id: :uuid, force: true do |t|
+      t.date :day, null: false
+      t.uuid :workspace_id
+      t.integer :views, null: false, default: 0
+      t.timestamps
+    end
+    source = Class.new(ActiveRecord::Base) do
+      def self.name = "WorkspaceView"
+      self.table_name = table
+    end
+    dest = Class.new(ActiveRecord::Base) do
+      def self.name = "WorkspaceSummary"
+      self.table_name = summary
+    end
+    RecordingStudioLogs.reset!
+    RecordingStudioLogs.register(
+      model: source, timestamp_column: :occurred_at, partition_interval: nil,
+      root_column: :workspace_id, owner: "Bridge",
+      aggregatable: { workspace_id: { group: true } }
+    )
+    RecordingStudioLogs.aggregate(
+      source: source, name: "host/workspace_views", summary_model: dest,
+      group_by: [:workspace_id], measurements: { views: :count }, owner: "Bridge"
+    )
+    RecordingStudioLogs.finalize!
+    root_id = SecureRandom.uuid
+    source.create!(occurred_at: Time.utc(2026, 10, 14, 12), workspace_id: root_id)
+    RecordingStudioLogs.aggregate_day!(Date.new(2026, 10, 14))
+    root = Struct.new(:id, :recordable_id).new(root_id, SecureRandom.uuid)
+    result = RecordingStudioMetrics.execute(
+      "host_workspace_views.views",
+      context: RecordingStudioMetrics::Context.new(
+        scope: :root, system: true, root_recording: root, timezone: "UTC",
+        timestamp: Time.utc(2026, 10, 16, 12)
+      ),
+      start_at: Time.utc(2026, 10, 14), end_at: Time.utc(2026, 10, 16), interval: :day
+    )
+    definition = RecordingStudioMetrics.find("host_workspace_views.views")
+
+    assert_equal :workspace_id, definition.scope_attribute
+    assert_equal :root_recording_id, definition.scope_value
+    assert_equal(
+      [["2026-10-14", 1], ["2026-10-15", 0]],
+      result.data.map { |point| [point[:date], point[:value].to_i] }
+    )
+  ensure
+    if ActiveRecord::Base.connected?
+      names = [summary, table, "recording_studio_logs_aggregation_runs", "recording_studio_logs_maintenance_runs"]
+      names.each do |name|
+        ActiveRecord::Base.connection.drop_table(name, if_exists: true, force: :cascade)
+      end
+    end
+    RecordingStudioLogs.reset!
+    RecordingStudioMetrics.registry.reset!
+    ActiveRecord::Base.connection_pool.disconnect!
   end
 
   def test_execute_rejects_logs_group_by_and_a_bad_timezone
@@ -153,20 +223,12 @@ class MetricsBridgeTest < Minitest::Test
   ensure
     drop_schema
     RecordingStudioLogs.reset!
+    RecordingStudioMetrics.registry.reset!
     ActiveRecord::Base.connection_pool.disconnect!
   end
 
   def root_recording
     Struct.new(:id, :recordable_id).new(SecureRandom.uuid, SecureRandom.uuid)
-  end
-
-  def connect!
-    ActiveRecord::Base.establish_connection(maintenance_config)
-    name = database_name
-    exists = ActiveRecord::Base.connection.select_value("SELECT 1 FROM pg_database WHERE datname = #{quote_name(name)}")
-    ActiveRecord::Base.connection.create_database(name) unless exists
-    ActiveRecord::Base.establish_connection(test_config)
-    ActiveRecord::Base.connection.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
   end
 
   def build_schema
@@ -192,32 +254,6 @@ class MetricsBridgeTest < Minitest::Test
     [SUMMARY, TABLE, "recording_studio_logs_aggregation_runs", "recording_studio_logs_maintenance_runs"].each do |name|
       connection.drop_table(name, if_exists: true, force: :cascade)
     end
-  end
-
-  def quote_name(name)
-    ActiveRecord::Base.connection.quote(name)
-  end
-
-  def database_name
-    "recording_studio_logs_gem_test"
-  end
-
-  def maintenance_config
-    test_config.merge(database: "postgres", pool: 1)
-  end
-
-  def test_config
-    if ENV["DATABASE_URL"]
-      uri = URI.parse(ENV["DATABASE_URL"])
-      return {
-        adapter: "postgresql", host: uri.host, port: uri.port || 5432,
-        username: uri.user, password: uri.password, database: database_name
-      }
-    end
-
-    { adapter: "postgresql", host: ENV.fetch("DB_HOST", "localhost"), port: ENV.fetch("DB_PORT", 5432).to_i,
-      username: ENV.fetch("DB_USER", "postgres"), password: ENV.fetch("DB_PASSWORD", "postgres"),
-      database: database_name }
   end
 
   def connection_config

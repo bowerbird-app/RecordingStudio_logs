@@ -27,13 +27,12 @@ class LogsRegistryTest < Minitest::Test
   end
 
   def setup
-    @original = RecordingStudioLogs.registry
-    RecordingStudioLogs.instance_variable_set(:@registry, RecordingStudioLogs::Registry.new)
+    RecordingStudioLogs.reset!
     RecordingStudioLogs.configuration.clear_retention_overrides!
   end
 
   def teardown
-    RecordingStudioLogs.instance_variable_set(:@registry, @original)
+    RecordingStudioLogs.reset!
     RecordingStudioLogs.configuration.clear_retention_overrides!
   end
 

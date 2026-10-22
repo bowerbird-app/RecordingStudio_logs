@@ -39,9 +39,7 @@ module RecordingStudioLogs
     end
 
     def reloading?
-      defined?(Rails) && Rails.respond_to?(:application) && Rails.application &&
-        Rails.application.config.respond_to?(:cache_classes) &&
-        Rails.application.config.cache_classes == false
+      Rails.application&.config&.cache_classes == false
     end
 
     def register_resource(definition)
@@ -49,7 +47,7 @@ module RecordingStudioLogs
       RecordingStudioMetrics.register(
         definition.metrics_resource,
         model: definition.summary_model,
-        scope_attribute: :root_recording_id,
+        scope_attribute: definition.log.root_column,
         scope_value: :root_recording_id
       ) { rows.each { |name, options| timeseries(name, **options) } }
     end

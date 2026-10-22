@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.7.0] - 2026-10-22
 
 ### Changed
-- Logs registers daily count and sum summaries through the public Metrics `register` API. UTC buckets use `bucket_timezone: "UTC"`. Empty days are zero-filled (`fill_gaps: true`). Root isolation uses `scope_attribute: :root_recording_id` and `scope_value: :root_recording_id`.
+- Logs registers daily count and sum summaries through the public Metrics `register` API. UTC buckets use `bucket_timezone: "UTC"`. Empty days are zero-filled (`fill_gaps: true`). Root isolation uses `scope_attribute` from the log's root column and `scope_value: :root_recording_id`.
 - RecordingStudio_metrics is pinned to `~> 0.6.1` (GitHub tag `v0.6.1`).
 - Missing `config/recording_studio_logs.yml` is skipped, including a nil config path. Invalid YAML and invalid `config.x` values raise.
 - The install generator no longer injects Tailwind or Flatpack `@source` paths. The engine no longer ships a template home controller or root route.

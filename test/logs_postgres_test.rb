@@ -2,8 +2,11 @@
 
 require "test_helper"
 require "pg"
+require "support/postgres_connection"
 
 class LogsPostgresTest < Minitest::Test
+  include LogsPostgresConnection
+
   VIEW_TABLE = "rs_logs_spec_views"
   DOWNLOAD_TABLE = "rs_logs_spec_downloads"
   KIT_TABLE = "rs_logs_spec_kit_views"
@@ -38,7 +41,7 @@ class LogsPostgresTest < Minitest::Test
   end
 
   def setup
-    connect!
+    connect!(pool: 5)
     reset_registry!
     build_schema
     register_sources
@@ -47,6 +50,7 @@ class LogsPostgresTest < Minitest::Test
   def teardown
     drop_schema
     RecordingStudioLogs.reset!
+    RecordingStudioMetrics.registry.reset! if defined?(RecordingStudioMetrics)
     ActiveRecord::Base.connection_pool.disconnect!
   end
 
@@ -547,6 +551,7 @@ class LogsPostgresTest < Minitest::Test
     day = Date.new(2026, 10, 14)
     root_id = SecureRandom.uuid
     7.times { insert_view(day, "PressKit", root_recording_id: root_id) }
+    3.times { insert_view(day, "PressKit", root_recording_id: SecureRandom.uuid) }
     RecordingStudioLogs.aggregate_day!(day)
     RecordingStudioLogs.finalize!
     root = Struct.new(:id, :recordable_id).new(root_id, SecureRandom.uuid)
@@ -560,9 +565,10 @@ class LogsPostgresTest < Minitest::Test
       ),
       start_at: Time.utc(2026, 10, 14), end_at: Time.utc(2026, 10, 16), interval: :day
     )
-    point = result.data.find { |row| row[:date] == "2026-10-14" }
-
-    assert_equal 7, point[:value].to_i
+    assert_equal(
+      [["2026-10-14", 7], ["2026-10-15", 0]],
+      result.data.map { |p| [p[:date], p[:value].to_i] }
+    )
   end
 
   def test_a_foreign_metric_still_groups_after_logs_installs
@@ -810,15 +816,6 @@ class LogsPostgresTest < Minitest::Test
 
   private
 
-  def connect!
-    ActiveRecord::Base.establish_connection(maintenance_config)
-    name = database_name
-    exists = ActiveRecord::Base.connection.select_value("SELECT 1 FROM pg_database WHERE datname = #{quote_name(name)}")
-    ActiveRecord::Base.connection.create_database(name) unless exists
-    ActiveRecord::Base.establish_connection(test_config.merge(pool: 5))
-    ActiveRecord::Base.connection.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
-  end
-
   def build_schema
     connection = ActiveRecord::Base.connection
     RecordingStudioLogs::Schema.install_runs!(connection)
@@ -1021,31 +1018,5 @@ class LogsPostgresTest < Minitest::Test
      "recording_studio_logs_aggregation_runs", "recording_studio_logs_maintenance_runs"].each do |name|
       connection.drop_table(name, if_exists: true, force: :cascade)
     end
-  end
-
-  def database_name
-    "recording_studio_logs_gem_test"
-  end
-
-  def maintenance_config
-    test_config.merge(database: "postgres", pool: 1)
-  end
-
-  def test_config
-    if ENV["DATABASE_URL"]
-      uri = URI.parse(ENV["DATABASE_URL"])
-      return {
-        adapter: "postgresql", host: uri.host, port: uri.port || 5432,
-        username: uri.user, password: uri.password, database: database_name
-      }
-    end
-
-    { adapter: "postgresql", host: ENV.fetch("DB_HOST", "localhost"), port: ENV.fetch("DB_PORT", 5432).to_i,
-      username: ENV.fetch("DB_USER", "postgres"), password: ENV.fetch("DB_PASSWORD", "postgres"),
-      database: database_name }
-  end
-
-  def quote_name(name)
-    ActiveRecord::Base.connection.quote(name)
   end
 end

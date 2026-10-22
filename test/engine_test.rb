@@ -89,46 +89,6 @@ class EngineTest < Minitest::Test
     end
   end
 
-  def test_load_config_merges_each_pair_x_config
-    pair_config = Class.new do
-      def each_pair
-        yield(:reconciliation_days, 15)
-      end
-    end.new
-
-    xcfg = Struct.new(:recording_studio_logs).new(pair_config)
-    app_config = Struct.new(:x).new(xcfg)
-    app = Struct.new(:config) do
-      def config_for(_name)
-        {}
-      end
-    end.new(app_config)
-
-    find_initializer("recording_studio_logs.load_config").block.call(app)
-
-    assert_equal 15, RecordingStudioLogs.configuration.reconciliation_days
-  end
-
-  def test_load_config_raises_when_each_pair_fails
-    bad_pair_config = Class.new do
-      def each_pair
-        raise KeyError, "bad pair"
-      end
-    end.new
-
-    xcfg = Struct.new(:recording_studio_logs).new(bad_pair_config)
-    app_config = Struct.new(:x).new(xcfg)
-    app = Struct.new(:config) do
-      def config_for(_name)
-        { months_ahead: 6 }
-      end
-    end.new(app_config)
-
-    assert_raises(KeyError) do
-      find_initializer("recording_studio_logs.load_config").block.call(app)
-    end
-  end
-
   def test_load_config_is_noop_without_config_sources
     app = Struct.new(:config).new(Object.new)
 
