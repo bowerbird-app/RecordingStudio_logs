@@ -3,25 +3,19 @@
 module RecordingStudioLogs
   class LogRegistration
     INTERVALS = [nil, :monthly].freeze
-    KEYS = %i[model timestamp_column partition_interval retention root_column owner aggregatable].freeze
-    DEFAULTS = { partition_interval: :monthly, retention: :indefinite, aggregatable: {} }.freeze
-    READERS = {
-      timestamp_column: ->(values) { values.fetch(:timestamp_column).to_sym },
-      partition_interval: ->(values) { normalize_interval(values[:partition_interval]) },
-      declared_retention: ->(values) { Retention.normalize(values[:retention]) },
-      root_column: ->(values) { values[:root_column]&.to_sym },
-      owner: ->(values) { values[:owner].presence || default_owner },
-      contract: ->(values) { ColumnContract.new(values[:aggregatable]) }
-    }.freeze
 
     attr_reader :model_reference, :timestamp_column, :partition_interval, :root_column, :owner,
                 :contract, :declared_retention
 
-    def initialize(**attributes)
-      attributes.assert_valid_keys(*KEYS)
-      values = DEFAULTS.merge(attributes)
-      @model_reference = ModelReference.new(values.fetch(:model))
-      READERS.each { |name, reader| instance_variable_set(:"@#{name}", instance_exec(values, &reader)) }
+    def initialize(model:, timestamp_column:, partition_interval: :monthly, retention: :indefinite, # rubocop:disable Metrics/ParameterLists
+                   root_column: nil, owner: nil, aggregatable: {})
+      @model_reference = ModelReference.new(model)
+      @timestamp_column = timestamp_column.to_sym
+      @partition_interval = normalize_interval(partition_interval)
+      @declared_retention = Retention.normalize(retention)
+      @root_column = root_column&.to_sym
+      @owner = owner.presence || default_owner
+      @contract = ColumnContract.new(aggregatable)
       validate_timestamp!
     end
 

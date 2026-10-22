@@ -41,7 +41,12 @@ module RecordingStudioLogs
       end
 
       def merge_x_config(xcfg)
-        RecordingStudioLogs.configuration.merge!(xcfg.to_h) if xcfg.respond_to?(:to_h)
+        return RecordingStudioLogs.configuration.merge!(xcfg.to_h) if xcfg.respond_to?(:to_h)
+        return unless xcfg.respond_to?(:each_pair)
+
+        hash = {}
+        xcfg.each_pair { |key, value| hash[key] = value }
+        RecordingStudioLogs.configuration.merge!(hash) if hash.any?
       end
 
       def yaml_config_path(app)
