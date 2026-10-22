@@ -43,15 +43,16 @@ class EngineTest < Minitest::Test
       hook_payload = cfg
     end
 
-    xcfg = Struct.new(:recording_studio_logs).new({ months_ahead: 4 })
-    app_config = Struct.new(:x).new(xcfg)
-    app = Struct.new(:config) do
-      def config_for(_name)
+    Dir.mktmpdir do |dir|
+      config_dir = File.join(dir, "config")
+      FileUtils.mkdir_p(config_dir)
+      File.write(File.join(config_dir, "recording_studio_logs.yml"), "reconciliation_days: 12\n")
+      app = yaml_app(config_dir, extra: { months_ahead: 4 }) do |_name|
         { reconciliation_days: 12 }
       end
-    end.new(app_config)
 
-    find_initializer("recording_studio_logs.load_config").block.call(app)
+      find_initializer("recording_studio_logs.load_config").block.call(app)
+    end
 
     assert hook_called
     assert_equal RecordingStudioLogs.configuration, hook_payload

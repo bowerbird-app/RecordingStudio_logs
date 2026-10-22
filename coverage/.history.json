@@ -1,0 +1,423 @@
+{
+  "simplecov_history": {
+    "format_version": 1,
+    "entries": [
+      {
+        "created_at": "2026-10-22T05:55:21Z",
+        "branch": "cursor/logs-v0-7-0-metrics-api-ffa4",
+        "commit": "907ed88d3d7e552090b8dc38f66c2d5d1a53bdf2",
+        "totals": {
+          "line": 96.9,
+          "branch": 72.45
+        },
+        "groups": {},
+        "files": {
+          "lib/generators/recording_studio_logs/install/install_generator.rb": {
+            "line": 76.47,
+            "branch": 25.0
+          },
+          "lib/recording_studio_logs.rb": {
+            "line": 100.0,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/admin.rb": {
+            "line": 100.0,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/admin/catalog.rb": {
+            "line": 96.49,
+            "branch": 66.66
+          },
+          "lib/recording_studio_logs/admin/screens.rb": {
+            "line": 97.46,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/admin/status.rb": {
+            "line": 98.48,
+            "branch": 76.31
+          },
+          "lib/recording_studio_logs/aggregation/count_recounter.rb": {
+            "line": 100.0,
+            "branch": 62.5
+          },
+          "lib/recording_studio_logs/aggregation/count_trigger.rb": {
+            "line": 100.0,
+            "branch": 66.66
+          },
+          "lib/recording_studio_logs/aggregation/definition_period.rb": {
+            "line": 95.83,
+            "branch": 63.63
+          },
+          "lib/recording_studio_logs/aggregation/period.rb": {
+            "line": 100.0,
+            "branch": 82.35
+          },
+          "lib/recording_studio_logs/aggregation/period_alignment.rb": {
+            "line": 100.0,
+            "branch": 80.0
+          },
+          "lib/recording_studio_logs/aggregation/period_options.rb": {
+            "line": 96.72,
+            "branch": 80.76
+          },
+          "lib/recording_studio_logs/aggregation/period_windows.rb": {
+            "line": 100.0,
+            "branch": 57.14
+          },
+          "lib/recording_studio_logs/aggregation/runner.rb": {
+            "line": 95.65,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/aggregation/scheduler.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/aggregation/statement.rb": {
+            "line": 100.0,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/aggregation_definition.rb": {
+            "line": 100.0,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/aggregation_run.rb": {
+            "line": 91.48,
+            "branch": 70.0
+          },
+          "lib/recording_studio_logs/column_contract.rb": {
+            "line": 96.29,
+            "branch": 62.5
+          },
+          "lib/recording_studio_logs/configuration.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/cutover.rb": {
+            "line": 100.0,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/engine.rb": {
+            "line": 86.11,
+            "branch": 72.72
+          },
+          "lib/recording_studio_logs/ensures_partition.rb": {
+            "line": 100.0,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/errors.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/jobs.rb": {
+            "line": 100.0,
+            "branch": 83.33
+          },
+          "lib/recording_studio_logs/lock.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/log_registration.rb": {
+            "line": 95.55,
+            "branch": 83.33
+          },
+          "lib/recording_studio_logs/maintenance_run.rb": {
+            "line": 91.66,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/measurement.rb": {
+            "line": 97.43,
+            "branch": 72.22
+          },
+          "lib/recording_studio_logs/metrics_bridge.rb": {
+            "line": 100.0,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/model_reference.rb": {
+            "line": 100.0,
+            "branch": 83.33
+          },
+          "lib/recording_studio_logs/partitioning/catalog.rb": {
+            "line": 96.66,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/partitioning/detector.rb": {
+            "line": 100.0,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/partitioning/maintainer.rb": {
+            "line": 93.61,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/partitioning/names.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/partitioning/table_stats.rb": {
+            "line": 100.0,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/partitioning/window.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/registry.rb": {
+            "line": 100.0,
+            "branch": 91.66
+          },
+          "lib/recording_studio_logs/retention.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/retention/cleaner.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/retention/cleaner_context.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/retention/day_cleaner.rb": {
+            "line": 100.0,
+            "branch": 70.0
+          },
+          "lib/recording_studio_logs/retention/owner_deletion.rb": {
+            "line": 100.0,
+            "branch": 70.0
+          },
+          "lib/recording_studio_logs/retention/raw_rows.rb": {
+            "line": 97.29,
+            "branch": 62.5
+          },
+          "lib/recording_studio_logs/retention/window_cleaner.rb": {
+            "line": 91.07,
+            "branch": 61.11
+          },
+          "lib/recording_studio_logs/retention/window_rows.rb": {
+            "line": 100.0,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/schema.rb": {
+            "line": 98.24,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/schema/aggregation_runs_upgrade.rb": {
+            "line": 71.87,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/schema/inspection.rb": {
+            "line": 87.75,
+            "branch": 50.0
+          }
+        }
+      },
+      {
+        "created_at": "2026-10-22T05:56:10Z",
+        "branch": "cursor/logs-v0-7-0-metrics-api-ffa4",
+        "commit": "907ed88d3d7e552090b8dc38f66c2d5d1a53bdf2",
+        "totals": {
+          "line": 96.9,
+          "branch": 72.45
+        },
+        "groups": {},
+        "files": {
+          "lib/generators/recording_studio_logs/install/install_generator.rb": {
+            "line": 76.47,
+            "branch": 25.0
+          },
+          "lib/recording_studio_logs.rb": {
+            "line": 100.0,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/admin.rb": {
+            "line": 100.0,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/admin/catalog.rb": {
+            "line": 96.49,
+            "branch": 66.66
+          },
+          "lib/recording_studio_logs/admin/screens.rb": {
+            "line": 97.46,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/admin/status.rb": {
+            "line": 98.48,
+            "branch": 76.31
+          },
+          "lib/recording_studio_logs/aggregation/count_recounter.rb": {
+            "line": 100.0,
+            "branch": 62.5
+          },
+          "lib/recording_studio_logs/aggregation/count_trigger.rb": {
+            "line": 100.0,
+            "branch": 66.66
+          },
+          "lib/recording_studio_logs/aggregation/definition_period.rb": {
+            "line": 95.83,
+            "branch": 63.63
+          },
+          "lib/recording_studio_logs/aggregation/period.rb": {
+            "line": 100.0,
+            "branch": 82.35
+          },
+          "lib/recording_studio_logs/aggregation/period_alignment.rb": {
+            "line": 100.0,
+            "branch": 80.0
+          },
+          "lib/recording_studio_logs/aggregation/period_options.rb": {
+            "line": 96.72,
+            "branch": 80.76
+          },
+          "lib/recording_studio_logs/aggregation/period_windows.rb": {
+            "line": 100.0,
+            "branch": 57.14
+          },
+          "lib/recording_studio_logs/aggregation/runner.rb": {
+            "line": 95.65,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/aggregation/scheduler.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/aggregation/statement.rb": {
+            "line": 100.0,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/aggregation_definition.rb": {
+            "line": 100.0,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/aggregation_run.rb": {
+            "line": 91.48,
+            "branch": 70.0
+          },
+          "lib/recording_studio_logs/column_contract.rb": {
+            "line": 96.29,
+            "branch": 62.5
+          },
+          "lib/recording_studio_logs/configuration.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/cutover.rb": {
+            "line": 100.0,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/engine.rb": {
+            "line": 86.11,
+            "branch": 72.72
+          },
+          "lib/recording_studio_logs/ensures_partition.rb": {
+            "line": 100.0,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/errors.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/jobs.rb": {
+            "line": 100.0,
+            "branch": 83.33
+          },
+          "lib/recording_studio_logs/lock.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/log_registration.rb": {
+            "line": 95.55,
+            "branch": 83.33
+          },
+          "lib/recording_studio_logs/maintenance_run.rb": {
+            "line": 91.66,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/measurement.rb": {
+            "line": 97.43,
+            "branch": 72.22
+          },
+          "lib/recording_studio_logs/metrics_bridge.rb": {
+            "line": 100.0,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/model_reference.rb": {
+            "line": 100.0,
+            "branch": 83.33
+          },
+          "lib/recording_studio_logs/partitioning/catalog.rb": {
+            "line": 96.66,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/partitioning/detector.rb": {
+            "line": 100.0,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/partitioning/maintainer.rb": {
+            "line": 93.61,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/partitioning/names.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/partitioning/table_stats.rb": {
+            "line": 100.0,
+            "branch": 75.0
+          },
+          "lib/recording_studio_logs/partitioning/window.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/registry.rb": {
+            "line": 100.0,
+            "branch": 91.66
+          },
+          "lib/recording_studio_logs/retention.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/retention/cleaner.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/retention/cleaner_context.rb": {
+            "line": 100.0,
+            "branch": 100.0
+          },
+          "lib/recording_studio_logs/retention/day_cleaner.rb": {
+            "line": 100.0,
+            "branch": 70.0
+          },
+          "lib/recording_studio_logs/retention/owner_deletion.rb": {
+            "line": 100.0,
+            "branch": 70.0
+          },
+          "lib/recording_studio_logs/retention/raw_rows.rb": {
+            "line": 97.29,
+            "branch": 62.5
+          },
+          "lib/recording_studio_logs/retention/window_cleaner.rb": {
+            "line": 91.07,
+            "branch": 61.11
+          },
+          "lib/recording_studio_logs/retention/window_rows.rb": {
+            "line": 100.0,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/schema.rb": {
+            "line": 98.24,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/schema/aggregation_runs_upgrade.rb": {
+            "line": 71.87,
+            "branch": 50.0
+          },
+          "lib/recording_studio_logs/schema/inspection.rb": {
+            "line": 87.75,
+            "branch": 50.0
+          }
+        }
+      }
+    ]
+  }
+}

@@ -30,7 +30,9 @@ class LogsDemonstrationTest < ActiveSupport::TestCase
     previous = RecordingStudioMetrics.configuration.min_group_size
     table = "rs_dummy_api_requests"
     context = RecordingStudioMetrics::Context.new(
-      scope: :root, system: true, workspace_id: SecureRandom.uuid, timezone: "UTC"
+      scope: :root, system: true,
+      root_recording: Struct.new(:id, :recordable_id).new(SecureRandom.uuid, SecureRandom.uuid),
+      timezone: "UTC"
     )
     assert_raises(RecordingStudioMetrics::Errors::InvalidGroupBy) do
       RecordingStudioMetrics.execute("presskits_press_kit_views.views", context: context, group_by: "route_name")

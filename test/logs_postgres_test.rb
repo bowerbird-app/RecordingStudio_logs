@@ -609,7 +609,7 @@ class LogsPostgresTest < Minitest::Test
     require "recording_studio_metrics"
     RecordingStudioLogs.finalize!
     context = RecordingStudioMetrics::Context.new(
-      scope: :root, system: true, workspace_id: SecureRandom.uuid, timezone: "UTC",
+      scope: :root, system: true, root_recording: metrics_root, timezone: "UTC",
       timestamp: Time.utc(2026, 10, 16, 12)
     )
 
@@ -627,7 +627,7 @@ class LogsPostgresTest < Minitest::Test
     bad = Object.new
     def bad.to_time = "nope"
     context = RecordingStudioMetrics::Context.new(
-      scope: :root, system: true, workspace_id: SecureRandom.uuid, timezone: "UTC",
+      scope: :root, system: true, root_recording: metrics_root, timezone: "UTC",
       timestamp: Time.utc(2026, 10, 16, 12)
     )
 
@@ -949,6 +949,10 @@ class LogsPostgresTest < Minitest::Test
 
   def total_summary
     RecordingStudioLogs.registry.aggregation("host/all_views").summary_model
+  end
+
+  def metrics_root
+    Struct.new(:id, :recordable_id).new(SecureRandom.uuid, SecureRandom.uuid)
   end
 
   def drop_extra(table_name)

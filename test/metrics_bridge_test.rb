@@ -87,41 +87,7 @@ class MetricsBridgeTest < Minitest::Test
   end
 
   def test_execute_keeps_group_by_on_a_metric_logs_does_not_own
-    with_published_bridge do
-      previous = RecordingStudioMetrics.configuration.min_group_size
-      table = "rs_logs_bridge_api_requests"
-      begin
-        connection = ActiveRecord::Base.connection
-        connection.create_table table, id: :uuid, force: true do |t|
-          t.uuid :workspace_id, null: false
-          t.string :route_name, null: false
-        end
-        model = Class.new(ActiveRecord::Base)
-        model.table_name = table
-        workspace_id = SecureRandom.uuid
-        model.create!(workspace_id: workspace_id, route_name: "folders")
-        resource = :"bridge_api_requests_#{SecureRandom.hex(4)}"
-        RecordingStudioMetrics.register(resource, model: model) do
-          count :total, group_by: [:route_name]
-        end
-        RecordingStudioMetrics.configuration.min_group_size = 1
-        result = RecordingStudioMetrics.execute(
-          "#{resource}.total",
-          context: RecordingStudioMetrics::Context.new(
-            scope: :root, system: true, workspace_id: workspace_id, timezone: "UTC"
-          ),
-          group_by: "route_name",
-          cache: false
-        )
-
-        assert_equal 1, result.value
-        assert_equal :route_name, result.group_by
-        assert_equal [{ key: "folders", value: 1 }], result.groups
-      ensure
-        RecordingStudioMetrics.configuration.min_group_size = previous
-        ActiveRecord::Base.connection.drop_table(table, if_exists: true)
-      end
-    end
+    with_published_bridge { assert_foreign_group_by_still_works }
   end
 
   def test_bridge_does_not_reopen_metrics_classes
@@ -134,6 +100,40 @@ class MetricsBridgeTest < Minitest::Test
   end
 
   private
+
+  def assert_foreign_group_by_still_works
+    previous = RecordingStudioMetrics.configuration.min_group_size
+    table = "rs_logs_bridge_api_requests"
+    connection = ActiveRecord::Base.connection
+    connection.create_table table, id: :uuid, force: true do |t|
+      t.uuid :workspace_id, null: false
+      t.string :route_name, null: false
+    end
+    model = Class.new(ActiveRecord::Base)
+    model.table_name = table
+    workspace_id = SecureRandom.uuid
+    model.create!(workspace_id: workspace_id, route_name: "folders")
+    resource = :"bridge_api_requests_#{SecureRandom.hex(4)}"
+    RecordingStudioMetrics.register(resource, model: model) do
+      count :total, group_by: [:route_name]
+    end
+    RecordingStudioMetrics.configuration.min_group_size = 1
+    result = RecordingStudioMetrics.execute(
+      "#{resource}.total",
+      context: RecordingStudioMetrics::Context.new(
+        scope: :root, system: true, workspace_id: workspace_id, timezone: "UTC"
+      ),
+      group_by: "route_name",
+      cache: false
+    )
+
+    assert_equal 1, result.value
+    assert_equal :route_name, result.group_by
+    assert_equal [{ key: "folders", value: 1 }], result.groups
+  ensure
+    RecordingStudioMetrics.configuration.min_group_size = previous if previous
+    ActiveRecord::Base.connection.drop_table(table, if_exists: true) if defined?(table)
+  end
 
   def with_published_bridge
     connect!

@@ -10,7 +10,7 @@ module RecordingStudioLogs
 
     initializer "recording_studio_logs.load_config" do |app|
       if app.respond_to?(:config_for)
-        path = yaml_config_path(app)
+        path = Engine.yaml_config_path(app)
         unless path.nil? || !File.exist?(path)
           yaml = app.config_for(:recording_studio_logs)
           RecordingStudioLogs.configuration.merge!(yaml) if yaml.respond_to?(:each)

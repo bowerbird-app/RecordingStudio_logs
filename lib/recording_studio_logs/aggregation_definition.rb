@@ -20,13 +20,8 @@ module RecordingStudioLogs
       attributes.assert_valid_keys(*KEYS)
       @source = ModelReference.new(attributes.fetch(:source))
       @summary = ModelReference.new(attributes.fetch(:summary_model))
-      assign_shape(
-        attributes.fetch(:name),
-        attributes.fetch(:filter, {}),
-        attributes.fetch(:group_by, []),
-        attributes.fetch(:measurements, {}),
-        attributes[:owner]
-      )
+      assign_shape(attributes.fetch(:name), attributes.fetch(:filter, {}),
+                   attributes.fetch(:group_by, []), attributes.fetch(:measurements, {}), attributes[:owner])
       @period_options = period_options_from(attributes)
       validate_shape!
     end

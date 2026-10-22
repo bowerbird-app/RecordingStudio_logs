@@ -8,7 +8,7 @@ module RecordingStudioLogs
     attr_reader :model_reference, :timestamp_column, :partition_interval, :root_column, :owner,
                 :contract, :declared_retention
 
-    def initialize(**attributes)
+    def initialize(**attributes) # rubocop:disable Metrics/AbcSize
       attributes.assert_valid_keys(*KEYS)
       @model_reference = ModelReference.new(attributes.fetch(:model))
       @timestamp_column = attributes.fetch(:timestamp_column).to_sym
