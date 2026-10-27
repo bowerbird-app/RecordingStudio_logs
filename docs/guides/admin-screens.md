@@ -2,7 +2,7 @@
 
 Screens register only when `RecordingStudioAdmin` is loaded. They are read-only. Accessible on an admin root grants them. They never show raw log rows.
 
-The dummy app does not mount Admin. `recording_studio_admin` 2.3.2 needs Flatpack `~> 0.1.207`, and this dummy stays on `v0.1.196`. Do not bump that pin in this gem to get a browser. Test the screen definitions and catalog queries instead.
+The dummy app does not mount Admin. Gem tests load Admin `v2.7.0` and assert screen definitions and catalog queries. Open a host that mounts Admin to see the screens in a browser.
 
 ## What staff see
 
