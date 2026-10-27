@@ -50,7 +50,7 @@ class DocsCoverageTest < Minitest::Test
     ].each do |path|
       assert File.file?(File.join(root, path)), path
     end
-    assert_includes File.read(File.join(root, "guides/admin-screens.md")), "this dummy stays on"
+    assert_includes File.read(File.join(root, "guides/admin-screens.md")), "The dummy app does not mount Admin."
     assert_includes File.read(File.join(root, "cutover.md")), "ACCESS EXCLUSIVE"
   end
 end

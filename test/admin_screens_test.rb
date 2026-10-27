@@ -8,7 +8,7 @@ class AdminScreensTest < Minitest::Test
   def test_screens_load_against_the_admin_dsl
     require "recording_studio_admin"
     source = Gem.loaded_specs.fetch("recording_studio_admin").source
-    assert_equal "v2.3.2", source.options["tag"]
+    assert_equal "v2.7.0", source.options["tag"]
 
     RecordingStudioAdmin.registry.clear!
     RecordingStudioLogs::Admin.register!

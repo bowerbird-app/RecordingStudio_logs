@@ -14,13 +14,13 @@ gem "sprockets-rails"
 
 group :development, :test do
   gem "debug"
-  gem "flat_pack", github: "bowerbird-app/flatpack", tag: "v0.1.241", require: false
+  gem "flat_pack", github: "bowerbird-app/flatpack", tag: "v0.1.320", require: false
   gem "minitest-mock"
   gem "pg", "~> 1.1"
-  gem "recording_studio_accessible", github: "bowerbird-app/RecordingStudio_accessible", tag: "v0.18.0", require: false
-  gem "recording_studio_admin", github: "bowerbird-app/RecordingStudio_admin", tag: "v2.3.2", require: false
+  gem "recording_studio_accessible", github: "bowerbird-app/RecordingStudio_accessible", tag: "v0.22.1", require: false
+  gem "recording_studio_admin", github: "bowerbird-app/RecordingStudio_admin", tag: "v2.7.0", require: false
   gem "recording_studio_metrics", github: "bowerbird-app/RecordingStudio_metrics", tag: "v0.7.0", require: false
-  gem "recording_studio_trashable", github: "bowerbird-app/RecordingStudio_trashable", tag: "v0.11.0", require: false
+  gem "recording_studio_trashable", github: "bowerbird-app/RecordingStudio_trashable", tag: "v0.12.0", require: false
   gem "simplecov", require: false
 end
 
