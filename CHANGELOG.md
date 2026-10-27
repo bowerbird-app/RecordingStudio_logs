@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-27
+
+### Changed
+- `recording_studio` is `>= 6.1.0` (no 4.2 support). `recording_studio_metrics` is `>= 0.6.1`, `< 1.0` so Metrics 0.7.x resolves.
+
+### Upgrade notes
+- Hosts need Recording Studio 6.1.0 or newer. Metrics 0.6.1 through 0.7.x still work.
+
 ## [0.7.0] - 2026-10-22
 
 ### Changed
