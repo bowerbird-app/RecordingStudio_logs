@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-11-02
+
+### Changed
+- Docs match 0.7.1: Metrics is `>= 0.6.1, < 1.0` (0.7.x OK). CHANGELOG compare links include 0.7.1.
+
+### Removed
+- Tracked SimpleCov `coverage/` and `test/dummy/coverage/`.
+- Stale generator sibling `lib/generators/recording_studio_logs/install/INSTALL.md`.
+- Dummy leftovers `hello_controller.js` and `makeup_artist/custom_examples/.keep`.
+
+### Security
+- Rack in root and dummy lockfiles is 3.2.8 or later.
+
 ## [0.7.1] - 2026-10-27
 
 ### Changed
@@ -246,7 +259,9 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.1...v0.7.2
+[0.7.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.5.0...v0.5.1
