@@ -127,12 +127,12 @@ The dummy app is a host, not a product. It registers a partitioned site-view log
 
 Dummy pins:
 
-- dummy GitHub tag `v6.1.0` for Recording Studio
-- dummy GitHub tag `v0.22.1` for Accessible
+- dummy GitHub tag `v6.3.0` for Recording Studio
+- dummy GitHub tag `v0.24.0` for Accessible
 - dummy GitHub tag `v0.12.0` for Trashable
-- dummy GitHub tag `v0.11.0` for Root Switchable
-- dummy GitHub tag `v0.7.0` for Metrics
-- dummy GitHub tag `v0.6.0` for Cache
-- dummy GitHub tag `v0.1.320` for Flatpack
+- dummy GitHub tag `v0.11.3` for Root Switchable
+- dummy GitHub tag `v0.7.2` for Metrics
+- dummy GitHub tag `v0.6.2` for Cache
+- dummy GitHub tag `v0.1.341` for Flatpack
 
 Boot instructions live in `.cursor/install.sh` and `test/dummy/README.md`. Sign in at `/users/sign_in` with `admin@admin.com` / `Password`.

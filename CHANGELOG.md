@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-11-04
+
+### Changed
+- Dummy and development GitHub pins move to Recording Studio `v6.3.0`, Flatpack `v0.1.341`, Metrics `v0.7.2`, Accessible `v0.24.0`, Cache `v0.6.2`, and Root Switchable `v0.11.3`. Admin stays `v2.7.0`. Trashable stays `v0.12.0`. Gemspec floors are unchanged.
+
+### Removed
+- Unused engine `RecordingStudioLogs::ApplicationController` (no views, empty engine routes, hardcoded `layout "application"`).
+
+### Security
+- `crass` in root and dummy lockfiles is 1.0.8 or later.
+- Dummy `net-ssh` is 7.3.5 or later (lockfile is 7.3.8).
+- Transitive lockfile bumps in both lockfiles: `date` 3.6.0, `io-console` 0.9.5, `json` 3.1.0, `loofah` 2.25.3, `net-imap` 0.6.8, `nokogiri` 1.19.7, `prettyprint` 0.2.1, `rack-test` 2.3.0, `rails-html-sanitizer` 1.7.2, `uri` 1.1.2. `view_component` stays 4.19.0.
+
 ## [0.7.2] - 2026-11-02
 
 ### Changed
@@ -259,7 +272,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.3...HEAD
+[0.7.3]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.6.0...v0.7.0
