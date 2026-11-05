@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-11-05
+
+### Security
+- Root and dummy lockfiles use Rails 8.1.4.1. Rack stays 3.2.8, nokogiri 1.19.7, loofah 2.25.3, rails-html-sanitizer 1.7.2. Dummy net-ssh stays 7.3.8.
+
 ## [0.7.3] - 2026-11-04
 
 ### Changed
@@ -272,7 +277,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.3...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.4...HEAD
+[0.7.4]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.0...v0.7.1
