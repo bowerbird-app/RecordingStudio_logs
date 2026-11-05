@@ -1,3 +1,7 @@
+# Upgrade to 0.7.4
+
+No API or migration change. Root and dummy lockfiles use Rails 8.1.4.1. Rack, nokogiri, loofah, rails-html-sanitizer, and dummy net-ssh stay at the 0.7.3 security floors.
+
 # Upgrade to 0.7.3
 
 No API or migration change. Dummy and development GitHub pins move to Recording Studio `v6.3.0`, Flatpack `v0.1.341`, Metrics `v0.7.2`, Accessible `v0.24.0`, Cache `v0.6.2`, and Root Switchable `v0.11.3`. Admin stays `v2.7.0`. Trashable stays `v0.12.0`. Gemspec floors are unchanged. The engine no longer ships `RecordingStudioLogs::ApplicationController`. Lockfiles bump `crass` to 1.0.8 or later, and the dummy lockfile bumps `net-ssh` to 7.3.5 or later.
