@@ -4,7 +4,7 @@ No Logs API change and no Logs migration. `VERSION` stays `0.7.4`. Gemspec floor
 
 Dummy and development GitHub pins move to Recording Studio `v6.7.0`, Flatpack `v0.1.356`, Metrics `v0.8.0`, Trashable `v0.14.0`, Accessible `v0.31.0`, Admin `v2.13.0`, Cache `v0.6.3`, and Root Switchable `v0.15.0`.
 
-The dummy host sets `RecordingStudio` `config.authorize_write`. Writes need a persisted user and Accessible `:edit` on the root. Access rows are allowed from `AccessCreationContext` or with `:admin`. Root Switchable's mounted switch page still requires Accessible `:view` on the current root. The dummy recordings table adds nullable `purge_at` from Trashable 0.14 (`idx_rs_recordings_due_purge_at`).
+The dummy host sets `RecordingStudio` `config.authorize_write`. Writes need a persisted user and Accessible `:edit` on the root. Access rows are allowed from `AccessCreationContext` or with `:admin`. The dummy root switcher lists roots the actor can `:view`, and the mounted switch page still requires that grant on the current root. The dummy recordings table adds nullable `purge_at` from Trashable 0.14 (`idx_rs_recordings_due_purge_at`).
 
 # Upgrade to 0.7.4
 
