@@ -86,8 +86,8 @@ class DocsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Workspace: Tree Workspace"
     assert_includes response.body, "Folder: Reference"
     assert_includes response.body, "Page: API"
+    assert_includes response.body, "Access: Admin for docs-test@example.com"
     refute_includes response.body, "Access boundary"
-    refute_includes response.body, "Access: Admin"
     assert_select "div[role='tree']", count: 1
     assert_select "[role='treeitem']", minimum: 3
     refute_includes response.body, "Current structure"
@@ -157,6 +157,12 @@ class DocsControllerTest < ActionDispatch::IntegrationTest
   end
 
   def record_child(recordable, root_recording, parent_recording)
+    Current.actor = @user
+    unless RecordingStudioAccessible.authorized?(actor: @user, recording: root_recording, role: :edit)
+      result = RecordingStudioAccessible.bootstrap_owner_access!(recording: root_recording, actor: @user)
+      raise result.error if result.failure?
+    end
+
     RecordingStudio.record!(
       action: "created",
       recordable: recordable,

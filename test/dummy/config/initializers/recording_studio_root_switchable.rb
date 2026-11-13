@@ -27,6 +27,10 @@ RecordingStudioRootSwitchable.configure do |config|
         RecordingStudio.root_recording_for(workspace)
       end
     end
+    # The mounted switch page still requires Accessible :view on the current
+    # root (Root Switchable 0.12+). This check only decides which listed roots
+    # can be selected. The dummy lists every workspace; seeds and tests grant
+    # :view so the page can open.
     scope.access_check = ->(**) { true }
 
     scope.default_root = lambda do |roots:, **|

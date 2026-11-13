@@ -123,16 +123,16 @@ Screens register only when `RecordingStudioAdmin` is loaded. They are read-only,
 
 ## Dummy app
 
-The dummy app is a host, not a product. It registers a partitioned site-view log, daily press-kit and press-center summaries over those same rows, and an indefinite download-shaped log. It also has `legacy_download_logs`, an unpartitioned Downloadable-shaped table used only to prove copy-and-switch. Press centers do not have a gem. This dummy is that consumer. Admin is not mounted in the dummy; gem tests load Admin `v2.7.0` from the root bundle.
+The dummy app is a host, not a product. It registers a partitioned site-view log, daily press-kit and press-center summaries over those same rows, and an indefinite download-shaped log. It also has `legacy_download_logs`, an unpartitioned Downloadable-shaped table used only to prove copy-and-switch. Press centers do not have a gem. This dummy is that consumer. Admin is not mounted in the dummy; gem tests load Admin `v2.13.0` from the root bundle.
 
 Dummy pins:
 
-- dummy GitHub tag `v6.3.0` for Recording Studio
-- dummy GitHub tag `v0.24.0` for Accessible
-- dummy GitHub tag `v0.12.0` for Trashable
-- dummy GitHub tag `v0.11.3` for Root Switchable
-- dummy GitHub tag `v0.7.2` for Metrics
-- dummy GitHub tag `v0.6.2` for Cache
-- dummy GitHub tag `v0.1.341` for Flatpack
+- dummy GitHub tag `v6.7.0` for Recording Studio
+- dummy GitHub tag `v0.31.0` for Accessible
+- dummy GitHub tag `v0.14.0` for Trashable
+- dummy GitHub tag `v0.15.0` for Root Switchable
+- dummy GitHub tag `v0.8.0` for Metrics
+- dummy GitHub tag `v0.6.3` for Cache
+- dummy GitHub tag `v0.1.356` for Flatpack
 
 Boot instructions live in `.cursor/install.sh` and `test/dummy/README.md`. Sign in at `/users/sign_in` with `admin@admin.com` / `Password`.
