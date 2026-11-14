@@ -333,6 +333,73 @@ class LogsPeriodPostgresTest < Minitest::Test
     connection.drop_table(:rs_logs_period_totals, if_exists: true)
   end
 
+  def test_downgrade_folds_period_start_back_to_a_utc_day
+    connection = ActiveRecord::Base.connection
+    connection.drop_table(:recording_studio_logs_aggregation_runs, if_exists: true)
+    RecordingStudioLogs::Schema.install_runs!(connection)
+    connection.execute(<<~SQL.squish)
+      INSERT INTO recording_studio_logs_aggregation_runs
+        (id, aggregation_name, period_start, status, finished_at, created_at, updated_at)
+      VALUES (gen_random_uuid(), 'host/day_views', '2026-10-14 15:00:00', 'succeeded',
+              CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    SQL
+
+    RecordingStudioLogs::Schema.downgrade_aggregation_runs!(connection)
+    RecordingStudioLogs::Schema.downgrade_aggregation_runs!(connection)
+
+    day = connection.select_value(
+      "SELECT day FROM recording_studio_logs_aggregation_runs WHERE aggregation_name = 'host/day_views'"
+    )
+    assert_equal Date.new(2026, 10, 14), day.to_date
+    refute connection.column_exists?(:recording_studio_logs_aggregation_runs, :period_start)
+
+    RecordingStudioLogs::Schema.upgrade_aggregation_runs!(connection)
+    row = RecordingStudioLogs::AggregationRun.find_by!(aggregation_name: "host/day_views")
+    assert_equal Time.utc(2026, 10, 14), row.period_start
+    refute connection.column_exists?(:recording_studio_logs_aggregation_runs, :day)
+  end
+
+  def test_retention_deletes_the_overlap_of_a_day_and_an_hour
+    connection = ActiveRecord::Base.connection
+    connection.create_table :rs_logs_period_plain, id: :uuid do |table|
+      table.datetime :occurred_at, null: false
+      table.uuid :root_recording_id
+      table.string :resource_type, null: false
+      table.timestamps
+    end
+    plain = Class.new(ActiveRecord::Base) do
+      def self.name = "PlainOverlapLog"
+      self.table_name = "rs_logs_period_plain"
+    end
+    RecordingStudioLogs.reset!
+    RecordingStudioLogs.register(
+      model: plain, timestamp_column: :occurred_at, partition_interval: nil, retention: 1.hour,
+      root_column: :root_recording_id, owner: "Plain", aggregatable: aggregatable
+    )
+    RecordingStudioLogs.aggregate(
+      source: plain, name: "host/day_views", summary_model: DaySummary,
+      group_by: [:root_recording_id], measurements: { views: :count }, owner: "Days"
+    )
+    RecordingStudioLogs.aggregate(
+      source: plain, name: "host/hour_views", summary_model: HourSummary,
+      period: :hour, every: 3, period_column: :hour, group_by: [:root_recording_id],
+      measurements: { views: :count }, owner: "Hours"
+    )
+    root = SecureRandom.uuid
+    plain.create!(occurred_at: Time.utc(2020, 1, 15, 1), root_recording_id: root, resource_type: "PressKit")
+    plain.create!(occurred_at: Time.utc(2020, 1, 15, 9, 30), root_recording_id: root, resource_type: "PressKit")
+    RecordingStudioLogs.aggregate_period!("host/day_views", Time.utc(2020, 1, 15))
+    RecordingStudioLogs.aggregate_period!("host/hour_views", Time.utc(2020, 1, 15, 9))
+
+    report = RecordingStudioLogs::Retention::Cleaner.call(now: Time.utc(2020, 1, 16, 12))
+
+    assert_equal [Time.utc(2020, 1, 15, 1)], plain.order(:occurred_at).pluck(:occurred_at).map(&:utc)
+    assert_includes report.blocked, "rs_logs_period_plain"
+    assert_includes report.dropped, "rs_logs_period_plain"
+  ensure
+    ActiveRecord::Base.connection.drop_table(:rs_logs_period_plain, if_exists: true)
+  end
+
   def test_upgrade_renames_day_to_period_start
     connection = ActiveRecord::Base.connection
     connection.drop_table(:recording_studio_logs_aggregation_runs, if_exists: true)

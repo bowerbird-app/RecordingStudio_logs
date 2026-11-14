@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "tmpdir"
 require "generators/recording_studio_logs/install/install_generator"
 
 class InstallGeneratorTest < Minitest::Test
@@ -35,6 +36,23 @@ class InstallGeneratorTest < Minitest::Test
     refute_includes source, "add_tailwind_source"
     refute_includes source, "@source"
     refute RecordingStudioLogs::Generators::InstallGenerator.method_defined?(:add_tailwind_source, false)
+  end
+
+  def test_copy_initializer_and_optional_yaml_land_in_the_host
+    Dir.mktmpdir do |dir|
+      generator = build_generator(dir)
+      generator.copy_initializer
+      initializer = File.read(File.join(dir, "config/initializers/recording_studio_logs.rb"))
+
+      assert_includes initializer, "RecordingStudioLogs.configure"
+
+      generator.stub(:yes?, false) { generator.add_yaml_config }
+      refute File.exist?(File.join(dir, "config/recording_studio_logs.yml"))
+
+      generator.stub(:yes?, true) { generator.add_yaml_config }
+      yaml = File.read(File.join(dir, "config/recording_studio_logs.yml"))
+      assert_includes yaml, "reconciliation_days: 3"
+    end
   end
 
   def test_show_readme_displays_install_guide_for_invoke_behavior

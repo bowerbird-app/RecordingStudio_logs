@@ -31,10 +31,12 @@ class LogsContractsTest < Minitest::Test
 
     connection = Object.new
     def connection.quote_column_name(column) = "\"#{column}\""
+    sum = RecordingStudioLogs::Measurement.new(:total, :sum, :duration_ms)
     average = RecordingStudioLogs::Measurement.new(:total, :average, :duration_ms)
     minimum = RecordingStudioLogs::Measurement.new(:total, :minimum, :duration_ms)
     maximum = RecordingStudioLogs::Measurement.new(:total, :maximum, :duration_ms)
 
+    assert_equal 'COALESCE(SUM("duration_ms"), 0)', sum.sql(connection)
     assert_equal 'AVG("duration_ms")', average.sql(connection)
     assert_equal 'MIN("duration_ms")', minimum.sql(connection)
     assert_equal 'MAX("duration_ms")', maximum.sql(connection)
@@ -46,6 +48,10 @@ class LogsContractsTest < Minitest::Test
     assert_raises(RecordingStudioLogs::InvalidRegistration) { contract.allow_group!(:resource_type) }
     assert_raises(RecordingStudioLogs::InvalidRegistration) { contract.allow_measurement!(:sum, :resource_type) }
     assert_raises(RecordingStudioLogs::InvalidRegistration) { contract.allow_filter!(:ip_address) }
+
+    grouped_only = RecordingStudioLogs::ColumnContract.new(resource_type: { group: true })
+    refused = assert_raises(RecordingStudioLogs::InvalidRegistration) { grouped_only.allow_filter!(:resource_type) }
+    assert_includes refused.message, "cannot be filtered"
   end
 
   def test_cleanup_waiting_matches_the_table_and_not_a_prefix
@@ -72,6 +78,7 @@ class LogsContractsTest < Minitest::Test
     assert_nil RecordingStudioLogs::MaintenanceRun.record!(
       task: "partitions", subject: "site_views", status: "succeeded"
     )
+    assert_empty RecordingStudioLogs::Admin::Catalog.runs_for("host/views")
   ensure
     if previous
       ActiveRecord::Base.establish_connection(previous)

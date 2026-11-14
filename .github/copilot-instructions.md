@@ -22,6 +22,7 @@
 ## Testing
 
 - The standard root validation command is `bundle exec rake test` from the repository root.
+- `bundle exec rake test:all` also runs the dummy suite and collates SimpleCov over `app/` and `lib/`.
 - If a change affects dummy app boot, assets, or migrations, also validate the dummy app setup the same way CI does.
 - Add focused regression tests for engine hooks, generators, Recording Studio integration points, and template UX changes.
 

@@ -440,6 +440,71 @@ class LogsPostgresTest < Minitest::Test
     assert_includes names, "index_#{VIEW_TABLE}_on_root_recording_id_occurred_at"
   end
 
+  def test_partition_compatibility_names_a_unique_index_and_an_inbound_foreign_key
+    connection = ActiveRecord::Base.connection
+    connection.create_table :rs_logs_spec_parents, id: :uuid do |table|
+      table.datetime :occurred_at, null: false
+      table.string :code, null: false
+    end
+    connection.add_index :rs_logs_spec_parents, :code, unique: true, name: "index_rs_logs_spec_parents_on_code"
+    connection.create_table :rs_logs_spec_children, id: :uuid do |table|
+      table.uuid :parent_id
+    end
+    connection.add_foreign_key :rs_logs_spec_children, :rs_logs_spec_parents, column: :parent_id
+
+    inspection = RecordingStudioLogs::Schema.inspect_table("rs_logs_spec_parents")
+    report = RecordingStudioLogs::Schema.partition_compatibility("rs_logs_spec_parents", timestamp_column: :occurred_at)
+
+    index_columns = inspection.unique_indexes.map { |index| index.columns.join(",") }
+    assert_equal ["code"], index_columns
+    assert_equal ["rs_logs_spec_children"], inspection.inbound_foreign_keys.map(&:to_table)
+    assert_includes report.problems, "unique index index_rs_logs_spec_parents_on_code does not include occurred_at"
+    inbound = report.problems.find { |problem| problem.include?("foreign key") }
+    assert_includes inbound, "rs_logs_spec_children"
+    assert_includes inbound, "occurred_at"
+    refute report.compatible
+  ensure
+    connection = ActiveRecord::Base.connection
+    connection.drop_table(:rs_logs_spec_children, if_exists: true, force: :cascade)
+    connection.drop_table(:rs_logs_spec_parents, if_exists: true, force: :cascade)
+  end
+
+  def test_a_counted_day_is_fresh_and_the_summary_detail_lists_that_run
+    day = Date.new(2026, 10, 14)
+    insert_view(day, "PressKit")
+    RecordingStudioLogs.aggregate_day!(day)
+    log = RecordingStudioLogs.registry.log_for(ViewLog)
+
+    assert RecordingStudioLogs::AggregationRun.log_fresh?(log, [day], Time.utc(2026, 10, 14, 12))
+    runs = RecordingStudioLogs::Admin::Catalog.runs_for("presskits/press_kit_views")
+    assert_equal ["succeeded"], runs.map(&:status)
+    assert_equal Time.utc(2026, 10, 14), runs.first.period_start
+  end
+
+  def test_partition_maintenance_records_a_failure_when_a_table_name_cannot_fit
+    huge = Class.new(ActiveRecord::Base) do
+      def self.name = "HugeLog"
+      self.table_name = "h" * 56
+    end
+    RecordingStudioLogs.register(
+      model: huge, timestamp_column: :occurred_at, partition_interval: :monthly, owner: "Huge"
+    )
+
+    error = assert_raises(RecordingStudioLogs::InvalidRegistration) { RecordingStudioLogs.maintain_partitions! }
+    run = RecordingStudioLogs::MaintenanceRun.latest("partitions", huge.table_name)
+
+    assert_includes error.message, "too long"
+    assert_equal "failed", run.status
+    assert_includes run.details, "too long"
+  end
+
+  def test_an_analyzed_empty_summary_reports_zero_rows
+    ActiveRecord::Base.connection.execute("ANALYZE #{KIT_TABLE}")
+    stats = RecordingStudioLogs::Partitioning::TableStats.call(KIT_TABLE, partitioned: false)
+
+    assert_equal 0, stats.rows
+  end
+
   def test_cutover_copy_validates_and_can_roll_back
     source = "rs_logs_spec_legacy_downloads"
     dest = "rs_logs_spec_legacy_downloads_part"

@@ -1,6 +1,10 @@
 # Unreleased
 
-No Logs API change and no Logs migration. `VERSION` stays `0.7.4`. Gemspec floors stay `recording_studio >= 6.1.0` and `recording_studio_metrics >= 0.6.1, < 1.0`.
+# Upgrade to 0.7.5
+
+No Logs migration. Gemspec floors stay `recording_studio >= 6.1.0` and `recording_studio_metrics >= 0.6.1, < 1.0`.
+
+`RecordingStudioLogs::Retention::RawRows.max_in_window` is removed. Nothing in this gem called it. Keep using `cleanup_retention!` and `delete_for_root`.
 
 Dummy and development GitHub pins move to Recording Studio `v6.7.0`, Flatpack `v0.1.356`, Metrics `v0.8.0`, Trashable `v0.14.0`, Accessible `v0.31.0`, Admin `v2.13.0`, Cache `v0.6.3`, and Root Switchable `v0.15.0`.
 

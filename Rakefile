@@ -8,6 +8,7 @@ DUMMY_TEST_FILES = [
   File.expand_path("test/recording_studio_declarations_test.rb", __dir__)
 ].freeze
 DUMMY_GEMFILE = File.expand_path("test/dummy/Gemfile", __dir__)
+SIMPLECOV_HELPER = File.expand_path("test/simplecov_helper.rb", __dir__)
 DUMMY_APP_ROOT = File.expand_path("test/dummy", __dir__)
 TEST_ROOT = File.expand_path("test", __dir__)
 ROOT_TEST_EXCLUSIONS = %w[
@@ -40,9 +41,75 @@ end
 
 def dummy_bundle_base_env
   {
-    "BUNDLE_GEMFILE" => DUMMY_GEMFILE,
-    "DISABLE_SIMPLECOV" => "true"
+    "BUNDLE_GEMFILE" => DUMMY_GEMFILE
   }
+end
+
+def run_dummy_suite
+  Dir.chdir(DUMMY_APP_ROOT) do
+    env = dummy_bundle_env
+    run_command!(env, "bundle", "exec", "bin/rails", "db:prepare")
+    run_dummy_rails_tests(env)
+    run_dummy_host_tests(env)
+  end
+end
+
+# bin/rails boots the app before test_helper, so start SimpleCov in this process first.
+def run_dummy_rails_tests(env)
+  run_command!(
+    env.merge("SIMPLECOV_COMMAND_NAME" => "dummy"),
+    "bundle", "exec", "ruby", "-r#{SIMPLECOV_HELPER}", "bin/rails", "test"
+  )
+end
+
+def run_dummy_host_tests(env)
+  DUMMY_TEST_FILES.each do |test_file|
+    command_name = "dummy-host-#{File.basename(test_file, '.rb')}"
+    run_command!(
+      env.merge("SIMPLECOV_COMMAND_NAME" => command_name),
+      "bundle", "exec", "ruby", "-I#{TEST_ROOT}", test_file
+    )
+  end
+end
+
+def collate_coverage
+  require "simplecov"
+
+  result_files = Dir[File.expand_path("coverage/results/**/.resultset.json", __dir__)]
+  raise "No coverage results to collate. Run the gem and dummy suites first." if result_files.empty?
+
+  SimpleCov.collate(result_files, &coverage_profile)
+  report_collated_coverage(SimpleCov.result)
+end
+
+def coverage_profile
+  gem_root = File.expand_path(".", __dir__)
+  proc do
+    root gem_root
+    enable_coverage :branch
+    coverage_dir File.join(gem_root, "coverage")
+    cover "{app,lib}/**/*.rb"
+  end
+end
+
+def report_collated_coverage(result)
+  line = result.coverage_statistics(:line)
+  branch = result.coverage_statistics(:branch)
+  puts "Combined app/+lib/ line coverage: #{line.percent.floor(2)}% (#{line.covered}/#{line.total})"
+  puts "Combined app/+lib/ branch coverage: #{branch.percent.floor(2)}% (#{branch.covered}/#{branch.total})"
+  write_coverage_gaps(result)
+end
+
+def write_coverage_gaps(result)
+  lines = result.files.filter_map { |file| coverage_gap_line(file) }
+  File.write(File.expand_path("coverage/gaps.txt", __dir__), "#{lines.join("\n")}\n")
+end
+
+def coverage_gap_line(file)
+  missed = file.missed_lines.size
+  return if missed.zero?
+
+  "#{missed} missed / #{file.lines_of_code} #{file.covered_percent}% #{file.filename}"
 end
 
 Rake::TestTask.new(:test) do |t|
@@ -53,20 +120,13 @@ end
 
 namespace :test do
   desc "Run dummy app integration tests under the dummy app bundle"
-  task :dummy do
-    Dir.chdir(DUMMY_APP_ROOT) do
-      env = dummy_bundle_env
+  task(:dummy) { run_dummy_suite }
 
-      run_command!(env, "bundle", "exec", "bin/rails", "db:prepare")
-      run_command!(env, "bundle", "exec", "bin/rails", "test")
-      DUMMY_TEST_FILES.each do |test_file|
-        run_command!(env, "bundle", "exec", "ruby", "-I#{TEST_ROOT}", test_file)
-      end
-    end
-  end
+  desc "Collate gem and dummy SimpleCov results over app/ and lib/"
+  task(:coverage) { collate_coverage }
 
-  desc "Run gem and dummy app tests"
-  task all: %i[test dummy]
+  desc "Run gem and dummy app tests, then collate coverage"
+  task all: %i[test dummy coverage]
 end
 
 namespace :app do
