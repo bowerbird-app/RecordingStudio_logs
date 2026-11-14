@@ -9,13 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.5] - 2026-11-14
 
-### Removed
-- `RecordingStudioLogs::Retention::RawRows.max_in_window`. Nothing called it. Cleanup still goes through `cleanup_retention!`.
-
 ### Changed
-- Dummy and development GitHub pins move to Recording Studio `v6.7.0`, Flatpack `v0.1.356`, Metrics `v0.8.0`, Trashable `v0.14.0`, Accessible `v0.31.0`, Admin `v2.13.0`, Cache `v0.6.3`, and Root Switchable `v0.15.0`. Gemspec floors stay `recording_studio >= 6.1.0` and `recording_studio_metrics >= 0.6.1, < 1.0`.
+- Dummy and development GitHub pins move to Recording Studio `v6.10.0`, Flatpack `v0.1.366`, Metrics `v0.8.0`, Trashable `v0.15.0`, Accessible `v0.37.0`, Admin `v2.13.0`, Cache `v0.6.3`, and Root Switchable `v0.15.0`. Gemspec floors stay `recording_studio >= 6.1.0` and `recording_studio_metrics >= 0.6.1, < 1.0`.
+- The dummy copies Recording Studio 6.9's `root_recording_id` events migration (`20261114090000`). Events store the recording's root, with the root timeline index and the impersonator index.
 - The dummy host sets `config.authorize_write` (Accessible `:edit` on the root; Access rows use `AccessCreationContext` or `:admin`). The switcher lists roots the actor can `:view`, and seeds plus switcher tests grant that access so the mounted page can open. The dummy recordings table adds Trashable `purge_at`.
 - Transitive lockfile bumps: `irb` 1.19.0, `minitest` 6.1.0, `tailwind_merge` 1.5.6, `view_component` 4.24.0. Rack, nokogiri, loofah, rails-html-sanitizer, crass, and dummy net-ssh stay at the 0.7.4 floors.
+
+### Removed
+- `RecordingStudioLogs::Retention::RawRows.max_in_window`. Nothing called it. Cleanup still goes through `cleanup_retention!`.
 
 ## [0.7.4] - 2026-11-05
 
