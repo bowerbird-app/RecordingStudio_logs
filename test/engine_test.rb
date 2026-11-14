@@ -138,6 +138,22 @@ class EngineTest < Minitest::Test
     assert_equal 3, RecordingStudioLogs.configuration.reconciliation_days
   end
 
+  def test_load_config_reads_yaml_beside_the_app_root_when_paths_are_absent
+    Dir.mktmpdir do |dir|
+      config_dir = File.join(dir, "config")
+      FileUtils.mkdir_p(config_dir)
+      File.write(File.join(config_dir, "recording_studio_logs.yml"), "reconciliation_days: 9\n")
+      app = Struct.new(:config, :root).new(Struct.new(:x).new(nil), dir)
+      def app.config_for(_name)
+        { "reconciliation_days" => 9 }
+      end
+
+      find_initializer("recording_studio_logs.load_config").block.call(app)
+
+      assert_equal 9, RecordingStudioLogs.configuration.reconciliation_days
+    end
+  end
+
   def test_load_config_skips_a_nil_yaml_path
     app = Struct.new(:config, :root).new(Struct.new(:x).new(nil), nil)
     def app.config_for(_name)

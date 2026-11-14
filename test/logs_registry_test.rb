@@ -286,6 +286,42 @@ class LogsRegistryTest < Minitest::Test
     refute RecordingStudioLogs.logs.first.partitioned?
   end
 
+  def test_period_start_for_uses_the_aggregation_bucket
+    register_views
+    register_press_kit
+    definition = RecordingStudioLogs.aggregations.first
+
+    assert_equal Time.utc(2026, 10, 14), definition.period_start_for(Time.utc(2026, 10, 14, 15, 30))
+  end
+
+  def test_register_rejects_a_bad_interval_an_unsafe_timestamp_and_bad_count_options
+    interval = assert_raises(RecordingStudioLogs::InvalidRegistration) do
+      RecordingStudioLogs.register(model: ViewLog, timestamp_column: :occurred_at, partition_interval: :weekly)
+    end
+    timestamp = assert_raises(RecordingStudioLogs::InvalidRegistration) do
+      RecordingStudioLogs.register(model: ViewLog, timestamp_column: "occurred-at")
+    end
+    register_views
+    waited = assert_raises(RecordingStudioLogs::InvalidRegistration) do
+      RecordingStudioLogs.aggregate(
+        source: ViewLog, name: "presskits/press_kit_views", summary_model: PressKitSummary,
+        measurements: { views: :count }, count_after: -1
+      )
+    end
+    current = assert_raises(RecordingStudioLogs::InvalidRegistration) do
+      RecordingStudioLogs.aggregate(
+        source: ViewLog, name: "presskits/press_kit_views", summary_model: PressKitSummary,
+        measurements: { views: :count }, include_current: nil
+      )
+    end
+
+    assert_includes interval.message, "partition interval"
+    assert_includes timestamp.message, "not a safe name"
+    assert_includes waited.message, "count_after"
+    assert_includes current.message, "include_current"
+    assert_empty RecordingStudioLogs.aggregations
+  end
+
   def test_unknown_register_key_is_rejected
     assert_raises(ArgumentError) do
       RecordingStudioLogs.register(model: DownloadLog, timestamp_column: :occurred_at, mystery: true)

@@ -121,6 +121,26 @@ class AdminScreensTest < Minitest::Test
     assert_equal :success, RecordingStudioLogs::Admin::Status.badge_style("succeeded")
   end
 
+  def test_open_actions_link_to_the_detail_screen_for_that_row
+    require "recording_studio_admin"
+    RecordingStudioAdmin.registry.clear!
+    RecordingStudioLogs::Admin.register!
+
+    context = RecordingStudioAdmin::Context.new
+    health = RecordingStudioAdmin.screen_for("log_health")
+    summaries = RecordingStudioAdmin.screen_for("summaries")
+    log_row = Struct.new(:key).new("SiteViewLog")
+    summary_row = Struct.new(:key).new("presskits/press_kit_views")
+
+    log_url = health.table_value.actions.find { |action| action.name == :open }.resolve(log_row, context).url
+    summary_url = summaries.table_value.actions.find { |action| action.name == :open }.resolve(summary_row, context).url
+
+    assert_includes log_url, "log_detail"
+    assert_includes log_url, "log=SiteViewLog"
+    assert_includes summary_url, "summary_detail"
+    assert_includes summary_url, "aggregation=presskits/press_kit_views"
+  end
+
   private
 
   def with_enabled_logs_root

@@ -20,7 +20,8 @@ user-invocable: false
 3. Prefer unit tests for POROs and services, and minimal integration tests for engine wiring and generator behavior.
 4. Preserve public behavior; do not bypass production code to make tests pass.
 5. Run `bundle exec rake test` from the repository root.
-6. If the change affects dummy app boot, assets, or migrations, also validate the dummy app setup used in CI.
+6. Run `bundle exec rake test:all` before merge. It runs the dummy suite and collates SimpleCov over every Ruby file in `app/` and `lib/`.
+7. If the change affects dummy app boot, assets, or migrations, also validate the dummy app setup used in CI.
 
 ## Repository Expectations
 
