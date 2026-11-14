@@ -2,7 +2,9 @@
 
 No Logs API change and no Logs migration. `VERSION` stays `0.7.4`. Gemspec floors stay `recording_studio >= 6.1.0` and `recording_studio_metrics >= 0.6.1, < 1.0`.
 
-Dummy and development GitHub pins move to Recording Studio `v6.7.0`, Flatpack `v0.1.356`, Metrics `v0.8.0`, Trashable `v0.14.0`, Accessible `v0.31.0`, Admin `v2.13.0`, Cache `v0.6.3`, and Root Switchable `v0.15.0`.
+Dummy and development GitHub pins move to Recording Studio `v6.10.0`, Flatpack `v0.1.366`, Metrics `v0.8.0`, Trashable `v0.15.0`, Accessible `v0.37.0`, Admin `v2.13.0`, Cache `v0.6.3`, and Root Switchable `v0.15.0`.
+
+Hosts on Recording Studio 6.9 or 6.10 copy core migration `20261114090000_add_root_recording_id_to_recording_studio_events` before writing events. The dummy includes that copy. It backfills `recording_studio_events.root_recording_id`, then adds the root timeline index and the impersonator index. Logs itself ships no new migration.
 
 The dummy host sets `RecordingStudio` `config.authorize_write`. Writes need a persisted user and Accessible `:edit` on the root. Access rows are allowed from `AccessCreationContext` or with `:admin`. The dummy root switcher lists roots the actor can `:view`, and the mounted switch page still requires that grant on the current root. The dummy recordings table adds nullable `purge_at` from Trashable 0.14 (`idx_rs_recordings_due_purge_at`).
 
