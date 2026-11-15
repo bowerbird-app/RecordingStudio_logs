@@ -6,7 +6,7 @@ source "https://rubygems.org"
 gemspec
 
 # recording_studio is not published to RubyGems; resolve the gemspec pin from GitHub.
-gem "recording_studio", github: "bowerbird-app/RecordingStudio", tag: "v6.10.0"
+gem "recording_studio", github: "bowerbird-app/RecordingStudio", tag: "v7.0.0"
 
 gem "devise"
 gem "puma"
@@ -17,10 +17,10 @@ group :development, :test do
   gem "flat_pack", github: "bowerbird-app/flatpack", tag: "v0.1.366", require: false
   gem "minitest-mock"
   gem "pg", "~> 1.1"
-  gem "recording_studio_accessible", github: "bowerbird-app/RecordingStudio_accessible", tag: "v0.37.0", require: false
-  gem "recording_studio_admin", github: "bowerbird-app/RecordingStudio_admin", tag: "v2.13.0", require: false
-  gem "recording_studio_metrics", github: "bowerbird-app/RecordingStudio_metrics", tag: "v0.8.0", require: false
-  gem "recording_studio_trashable", github: "bowerbird-app/RecordingStudio_trashable", tag: "v0.15.0", require: false
+  gem "recording_studio_accessible", github: "bowerbird-app/RecordingStudio_accessible", tag: "v0.43.1", require: false
+  gem "recording_studio_admin", github: "bowerbird-app/RecordingStudio_admin", tag: "v2.16.0", require: false
+  gem "recording_studio_metrics", github: "bowerbird-app/RecordingStudio_metrics", tag: "v0.9.0", require: false
+  gem "recording_studio_trashable", github: "bowerbird-app/RecordingStudio_trashable", tag: "v0.16.1", require: false
   gem "simplecov", require: false
 end
 
