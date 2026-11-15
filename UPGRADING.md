@@ -1,5 +1,19 @@
 # Unreleased
 
+# Upgrade to 0.8.0
+
+`recording_studio` is `>= 7.0`, `< 8.0`. `recording_studio_metrics` is `>= 0.9.0`, `< 1.0`. No new Logs migration.
+
+`RecordingStudio.root_recording_for` only finds a root. It returns `nil` when that recordable has no root, and it does not write. Seeds, setup, and request paths that created a root by looking it up call `create_root_recording!` with an actor. A second call returns the same root and does not append another event.
+
+`create_root_recording!` authorizes with `recording`, `root_recording`, and `parent_recording` all nil. The dummy `authorize_write` allows that write for the signed-in actor (`actor` present, persisted, and equal to `Current.actor`). Do not set `allow_unauthorized_writes`.
+
+Dummy and development GitHub pins move to Recording Studio `v7.0.0`, Metrics `v0.9.0`, Accessible `v0.43.1`, Trashable `v0.16.1`, Root Switchable `v0.15.1`, and Admin `v2.16.0`. Flatpack stays `v0.1.366`. Cache stays `v0.6.3`.
+
+Trashable 0.16 removed `recording_studio_trashable_kept_sql`. The dummy seeds use `Recording.kept`.
+
+Log column contracts are unchanged. Secrets, tokens, passwords, and request fields such as IP address and user agent stay off `aggregatable` unless a producer already named them. Rails parameter filtering in the dummy stays on.
+
 # Upgrade to 0.7.5
 
 No Logs migration. Gemspec floors stay `recording_studio >= 6.1.0` and `recording_studio_metrics >= 0.6.1, < 1.0`.

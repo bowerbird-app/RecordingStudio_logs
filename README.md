@@ -1,6 +1,6 @@
 # RecordingStudioLogs
 
-Shared PostgreSQL logging for Recording Studio gems. A producing gem stores high-volume rows in its own table. Other gems register summaries over the columns that producer allows, with configurable periods (daily by default). RecordingStudio_metrics stays the query API (`>= 0.6.1, < 1.0`). Summaries still write when Metrics is not loaded.
+Shared PostgreSQL logging for Recording Studio gems. A producing gem stores high-volume rows in its own table. Other gems register summaries over the columns that producer allows, with configurable periods (daily by default). RecordingStudio_metrics stays the query API (`>= 0.9.0, < 1.0`). Summaries still write when Metrics is not loaded.
 
 Logs are exhaust. They are not recordings, and they are not `log_event!` history.
 
@@ -123,15 +123,15 @@ Screens register only when `RecordingStudioAdmin` is loaded. They are read-only,
 
 ## Dummy app
 
-The dummy app is a host, not a product. It registers a partitioned site-view log, daily press-kit and press-center summaries over those same rows, and an indefinite download-shaped log. It also has `legacy_download_logs`, an unpartitioned Downloadable-shaped table used only to prove copy-and-switch. Press centers do not have a gem. This dummy is that consumer. Admin is not mounted in the dummy; gem tests load Admin `v2.13.0` from the root bundle.
+The dummy app is a host, not a product. It registers a partitioned site-view log, daily press-kit and press-center summaries over those same rows, and an indefinite download-shaped log. It also has `legacy_download_logs`, an unpartitioned Downloadable-shaped table used only to prove copy-and-switch. Press centers do not have a gem. This dummy is that consumer. Admin is not mounted in the dummy; gem tests load Admin `v2.16.0` from the root bundle.
 
 Dummy pins:
 
-- dummy GitHub tag `v6.10.0` for Recording Studio
-- dummy GitHub tag `v0.37.0` for Accessible
-- dummy GitHub tag `v0.15.0` for Trashable
-- dummy GitHub tag `v0.15.0` for Root Switchable
-- dummy GitHub tag `v0.8.0` for Metrics
+- dummy GitHub tag `v7.0.0` for Recording Studio
+- dummy GitHub tag `v0.43.1` for Accessible
+- dummy GitHub tag `v0.16.1` for Trashable
+- dummy GitHub tag `v0.15.1` for Root Switchable
+- dummy GitHub tag `v0.9.0` for Metrics
 - dummy GitHub tag `v0.6.3` for Cache
 - dummy GitHub tag `v0.1.366` for Flatpack
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-15
+
+### Changed
+- `recording_studio` is `>= 7.0`, `< 8.0`. `recording_studio_metrics` is `>= 0.9.0`, `< 1.0`.
+- Dummy and development GitHub pins move to Recording Studio `v7.0.0`, Metrics `v0.9.0`, Accessible `v0.43.1`, Trashable `v0.16.1`, Root Switchable `v0.15.1`, and Admin `v2.16.0`. Flatpack stays `v0.1.366`. Cache stays `v0.6.3` (it already accepts core 7).
+- The dummy `authorize_write` allows the signed-in actor, including a new root. It does not set `allow_unauthorized_writes`. Seeds and tests that create a root call `create_root_recording!`. Lookups stay on `root_recording_for`. Seeds find kept children with `Recording.kept`.
+- Dummy lockfile `msgpack` is `1.8.7`. Rack, nokogiri, loofah, rails-html-sanitizer, crass, Rails, and dummy net-ssh stay at the 0.7.4 floors.
+
+### Upgrade notes
+- Hosts need Recording Studio 7.0 or newer, below 8, and Metrics 0.9.0 or newer, below 1. `root_recording_for` no longer creates a root. Create with `create_root_recording!` and an actor. That call authorizes with a nil root. See [UPGRADING.md](UPGRADING.md).
+
 ## [0.7.5] - 2026-11-14
 
 ### Changed
@@ -288,7 +299,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.5...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.5...v0.8.0
 [0.7.5]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.2...v0.7.3
