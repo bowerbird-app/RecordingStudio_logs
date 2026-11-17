@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-17
+
+### Changed
+- Development and dummy GitHub pins move to Recording Studio `v7.4.0`, Metrics `v0.9.1`, Accessible `v0.46.0`, Trashable `v1.0.1`, and Admin `v2.18.0`. Flatpack is `v0.1.377` in both Gemfiles (the dummy was already there). Root Switchable stays `v0.16.0`. Cache stays `v0.7.0`.
+- Gemspec floors stay `recording_studio >= 7.0`, `< 8.0` and `recording_studio_metrics >= 0.9.0`, `< 1.0`. The dummy does not copy Recording Studio 7.4.0's optional `index_rs_recordings_on_root_type_created_at_id` migration.
+- Both lockfiles move `connection_pool` to `3.0.3`, `websocket-extensions` to `0.2.0`, and `websocket-driver` to `0.9.0`.
+
+### Upgrade notes
+- No Logs migration and no gemspec floor change. Hosts that copy these GitHub pins move them together. Admin 2.16 and Accessible 0.43 cannot resolve Trashable 1.0. Accessible 0.46 needs Recording Studio 7.4.0 or newer, below 8.
+- Trashable 1.0 removes `RecordingStudioTrashable::Hooks` and `configuration.hooks`. This gem does not use those, and it does not use `RecordingStudio::Services::BaseService`.
+
 ## [0.8.0] - 2026-11-15
 
 ### Changed
@@ -299,7 +310,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.5...v0.8.0
 [0.7.5]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.3...v0.7.4
