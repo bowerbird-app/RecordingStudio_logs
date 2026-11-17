@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Development and dummy GitHub pins move to Recording Studio `v7.4.0`, Metrics `v0.9.1`, Accessible `v0.46.0`, Trashable `v1.0.1`, and Admin `v2.18.0`. Flatpack is `v0.1.377` in both Gemfiles (the dummy was already there). Root Switchable stays `v0.16.0`. Cache stays `v0.7.0`.
+- Gemspec floors stay `recording_studio >= 7.0`, `< 8.0` and `recording_studio_metrics >= 0.9.0`, `< 1.0`. The dummy does not copy Recording Studio 7.4.0's optional `index_rs_recordings_on_root_type_created_at_id` migration.
+- Both lockfiles move `connection_pool` to `3.0.3`, `websocket-extensions` to `0.2.0`, and `websocket-driver` to `0.9.0`.
+
+### Upgrade notes
+- No Logs migration and no gemspec floor change. Hosts that copy these GitHub pins move them together. Admin 2.16 and Accessible 0.43 cannot resolve Trashable 1.0. Accessible 0.46 needs Recording Studio 7.4.0 or newer, below 8.
+- Trashable 1.0 removes `RecordingStudioTrashable::Hooks` and `configuration.hooks`. This gem does not use those, and it does not use `RecordingStudio::Services::BaseService`.
+
 ## [0.8.0] - 2026-11-15
 
 ### Changed
