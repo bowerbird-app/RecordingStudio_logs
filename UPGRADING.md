@@ -1,16 +1,14 @@
-# Unreleased
+# Upgrade to 0.8.2
 
 No Logs migration. Gemspec floors stay `recording_studio >= 7.0`, `< 8.0` and `recording_studio_metrics >= 0.9.0`, `< 1.0`.
 
-Development and dummy GitHub pins move to Recording Studio `v7.4.0`, Metrics `v0.9.1`, Accessible `v0.46.0`, Trashable `v1.0.1`, and Admin `v2.18.0`. Flatpack is `v0.1.377` in both Gemfiles. Root Switchable stays `v0.16.0`. Cache stays `v0.7.0`.
+Development and dummy GitHub pins move to Recording Studio `v7.7.1`, Metrics `v0.9.2`, Accessible `v0.54.1`, Trashable `v1.2.1`, and Admin `v2.19.0`. Flatpack is `v0.1.378` in both Gemfiles. Root Switchable stays `v0.16.0`. Cache moves to `v0.7.1`.
 
-Move those pins together. Admin 2.16 and Accessible 0.43 cannot resolve Trashable 1.0. Accessible 0.46 needs Recording Studio 7.4.0 or newer, below 8.
+Move those pins together. Accessible 0.54 needs Recording Studio 7.7.0 or newer, below 8.
 
 Trashable 1.0 removes `RecordingStudioTrashable::Hooks` and `configuration.hooks`. This gem does not call them. It also does not use `RecordingStudio::Services::BaseService`.
 
-Recording Studio 7.4.0 adds an optional index, `index_rs_recordings_on_root_type_created_at_id`, on `recording_studio_recordings (root_recording_id, recordable_type, created_at, id)`. The dummy does not copy that migration. Logs does not require it.
-
-Both lockfiles move `connection_pool` to `3.0.3`, `websocket-extensions` to `0.2.0`, and `websocket-driver` to `0.9.0`.
+Hosts moving to Recording Studio 7.7 must run the Recording Studio 7.4, 7.5, and 7.7 migrations. 7.4 adds `index_rs_recordings_on_root_type_created_at_id` on `recording_studio_recordings (root_recording_id, recordable_type, created_at, id)`. 7.5 enforces the root invariant (`root_recording_id` not null, a parentless row is its own root, and the parent/root foreign key). 7.7 replaces `index_rs_recordings_on_root_recording` with `index_rs_recordings_on_root_created_at_id` on `(root_recording_id, created_at, id)`. The dummy does not copy those migrations. Logs does not ship them.
 
 # Upgrade to 0.8.0
 

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-18
+
+### Changed
+- Development and dummy GitHub pins move to Recording Studio `v7.7.1`, Metrics `v0.9.2`, Accessible `v0.54.1`, Trashable `v1.2.1`, Cache `v0.7.1`, and Admin `v2.19.0`. Flatpack is `v0.1.378` in both Gemfiles. Root Switchable stays `v0.16.0`.
+- Gemspec floors stay `recording_studio >= 7.0`, `< 8.0` and `recording_studio_metrics >= 0.9.0`, `< 1.0`. The dummy does not copy the Recording Studio 7.4, 7.5, or 7.7 migrations.
+
+### Upgrade notes
+- No Logs migration and no gemspec floor change. Hosts moving to Recording Studio 7.7 must run the Recording Studio 7.4, 7.5, and 7.7 migrations. Accessible 0.54 needs Recording Studio 7.7.0 or newer, below 8. See [UPGRADING.md](UPGRADING.md).
+
 ## [0.8.1] - 2026-11-17
 
 ### Changed
@@ -310,7 +319,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.5...v0.8.0
 [0.7.5]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.4...v0.7.5
