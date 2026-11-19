@@ -1,3 +1,13 @@
+# Upgrade to 0.9.0
+
+No Logs migration. Gemspec floors stay `recording_studio >= 7.0`, `< 8.0` and `recording_studio_metrics >= 0.9.0`, `< 1.0`.
+
+Development and dummy GitHub pins move to Recording Studio `v7.8.0` (`~> 7.8`), Metrics `v0.10.0` (`~> 0.10`), Accessible `v0.56.0` (`~> 0.56`), Trashable `v1.2.3` (`~> 1.2`), Cache `v0.8.0` (`~> 0.8`), Admin `v2.19.1` (`~> 2.19`), and Root Switchable `v0.16.1` (`~> 0.16`). Flatpack is `v0.2.0` (`~> 0.2`) in both Gemfiles.
+
+Move those pins together. Hosts MUST run the Recording Studio 7.4, 7.5 and 7.7 migrations if they have not. The dummy does not copy those migrations. Logs does not ship them.
+
+flat_pack 0.2.0 is supported; hosts moving to 0.2 must remove the manual `flat_pack/heroicons` importmap pin and any `flat-pack--icon` controller registration. The dummy importmap and captured install page drop that pin and the icon controller. Icons render on the server. The dummy Tailwind `@source` stays on `vendor/engines/flat_pack`, which the build links to the installed gem.
+
 # Upgrade to 0.8.2
 
 No Logs migration. Gemspec floors stay `recording_studio >= 7.0`, `< 8.0` and `recording_studio_metrics >= 0.9.0`, `< 1.0`.

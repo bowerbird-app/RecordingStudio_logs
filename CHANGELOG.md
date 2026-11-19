@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-19
+
+### Changed
+- Development and dummy GitHub pins move to Recording Studio `v7.8.0` (`~> 7.8`), Metrics `v0.10.0` (`~> 0.10`), Accessible `v0.56.0` (`~> 0.56`), Trashable `v1.2.3` (`~> 1.2`), Cache `v0.8.0` (`~> 0.8`), Admin `v2.19.1` (`~> 2.19`), and Root Switchable `v0.16.1` (`~> 0.16`). Flatpack is `v0.2.0` (`~> 0.2`) in both Gemfiles.
+- The dummy importmap drops the manual `flat_pack/heroicons` pin. `test/dummy/install_page.html` drops that pin and the `flat-pack--icon` controller.
+- Gemspec floors stay `recording_studio >= 7.0`, `< 8.0` and `recording_studio_metrics >= 0.9.0`, `< 1.0`. The dummy does not copy the Recording Studio 7.4, 7.5, or 7.7 migrations. The dummy Tailwind `@source` stays on the `vendor/engines/flat_pack` symlink, which already points at the installed revision.
+
+### Upgrade notes
+- No Logs migration and no gemspec floor change. Hosts MUST run the Recording Studio 7.4, 7.5 and 7.7 migrations if they have not.
+- flat_pack 0.2.0 is supported; hosts moving to 0.2 must remove the manual `flat_pack/heroicons` importmap pin and any `flat-pack--icon` controller registration.
+- See [UPGRADING.md](UPGRADING.md).
+
 ## [0.8.2] - 2026-11-18
 
 ### Changed
@@ -319,7 +331,8 @@ New addons copied from this template are born on Recording Studio 4.x.
 - Comprehensive README and documentation
 - Basic test suite with Minitest
 
-[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.8.2...v0.9.0
 [0.8.2]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/bowerbird-app/recording_studio_logs/compare/v0.7.5...v0.8.0
